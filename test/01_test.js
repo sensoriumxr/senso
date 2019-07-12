@@ -209,7 +209,7 @@ contract("SENSOCrowdsale", async accounts => {
       it('Cannot be purchased by a random person in favour of someone approved', async () => {
         shoudFail(async () => crowdsale.buyTokens(wallets.investor2, {
           from: wallets.noone,
-          value: 10n*constants.weiInEther
+          value: 10*constants.weiInEther
         }))
       })
 
