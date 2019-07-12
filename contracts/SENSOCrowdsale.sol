@@ -13,6 +13,7 @@ import "./SENSOToken.sol";
  * @dev SENSOCrowdsale is an extensively revamped contract based on
  * openzeppelin-solidity/contracts/crowdsale/Crowdsale.sol. Rate and approval
  * is stored per user.
+ * Finalization is based on `FinalizableCrowdsale` with start/end excluded.
  */
 contract SENSOCrowdsale is Ownable, ReentrancyGuard {
 
@@ -28,6 +29,12 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
 
     // Amount of wei raised
     uint256 private _weiRaised;
+
+    // Finalization
+    bool private _finalized;
+
+    // Amount of tokens raised
+    mapping (address => uint256) _tokenRaised;
 
     // Stores approvals per user for ether purchase
     mapping (address => Approval) public approvals;
@@ -59,6 +66,8 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      */
     event TokensPurchasedWithTokens(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount, IERC20 otherToken);
 
+    event CrowdsaleFinalized();
+
     /**
      * @dev The rate is the conversion between wei and the smallest and indivisible
      * token unit. So, if you are using a rate of 1 with a ERC20Detailed token
@@ -83,7 +92,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * of 2300, which is not enough to call buyTokens. Consider calling
      * buyTokens directly when purchasing tokens from a contract.
      */
-    function () external payable {
+    function () external payable onlyNotFinalized {
         buyTokens(msg.sender);
     }
 
@@ -109,12 +118,20 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @return the amount of tokens raised
+     * @param tokenTraded address of token
+     */
+    function tokensRaised(address tokenTraded) public view returns (uint256) {
+        return _tokenRaised[tokenTraded];
+    }
+
+    /**
      * @dev low level token purchase ***DO NOT OVERRIDE***
      * This function has a non-reentrancy guard, so it shouldn't be called by
      * another `nonReentrant` function.
      * @param beneficiary Recipient of the token purchase
      */
-    function buyTokens(address beneficiary) public nonReentrant payable {
+    function buyTokens(address beneficiary) public nonReentrant onlyNotFinalized payable {
         uint256 weiAmount = msg.value;
         _preValidatePurchase(beneficiary, weiAmount);
 
@@ -127,7 +144,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
 
         delete approvals[beneficiary];
 
-        _wallet.transfer(msg.value);
+        _wallet.transfer(weiAmount);
     }
 
     /**
@@ -164,7 +181,6 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         return weiAmount.mul(approvals[beneficiary].rate).div(1e18);
     }
 
-
     // Token purchase section
 
     /**
@@ -173,10 +189,12 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * another `nonReentrant` function.
      * @param beneficiary Recipient of the token purchase
      */
-    function buyTokensWithTokens(address beneficiary, IERC20 tradedToken, uint256 tokenAmountPaid) public nonReentrant {
+    function buyTokensWithTokens(address beneficiary, IERC20 tradedToken, uint256 tokenAmountPaid) public nonReentrant onlyNotFinalized {
         _preValidatePurchase(beneficiary, address(tradedToken), tokenAmountPaid);
 
         uint256 tokenAmountReceived = _getTokenAmountWithTokens(tokenAmountPaid, beneficiary, address(tradedToken));
+
+        _tokenRaised[address(tradedToken)] = _tokenRaised[address(tradedToken)].add(tokenAmountPaid);
 
         _deliverTokens(beneficiary, tokenAmountReceived);
         emit TokensPurchasedWithTokens(msg.sender, beneficiary, tokenAmountPaid, tokenAmountReceived, tradedToken);
@@ -225,7 +243,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @dev Approves `beneficiary` with `rate`.
      */
     function approve (address beneficiary, uint256 rate)
-        public onlyOwner() returns (bool)
+        public onlyOwner() onlyNotFinalized() returns (bool)
     {
         require (_isNotApproved(beneficiary), 'Investor already have an approval');
         approvals[beneficiary] = Approval(rate, block.timestamp + 7 days);
@@ -274,7 +292,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @dev Approves `beneficiary` with `rate`.
      */
     function tokenApprove (address beneficiary, address tradedToken, uint256 rate)
-        public onlyOwner() returns (bool)
+        public onlyOwner() onlyNotFinalized() returns (bool)
     {
         require (_isNotTokenApproved(beneficiary, tradedToken), 'Investor already have an approval');
         tokenApprovals[beneficiary][tradedToken] = Approval(rate, block.timestamp + 7 days);
@@ -299,6 +317,32 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         return (approval.bestBefore < block.timestamp);
     }
 
-    // approvals section end //
+
+    // Finalization section
+
+    /**
+     * @return true if the crowdsale is finalized, false otherwise.
+     */
+    function finalized() public view returns (bool) {
+        return _finalized;
+    }
+
+    /**
+     * @dev Must be called after crowdsale ends, to do some extra finalization
+     * work. Calls the contract's finalization function.
+     */
+    function finalize() onlyOwner onlyNotFinalized public {
+
+        _finalized = true;
+
+        _token.renounceMinter();
+        _token.unpause();
+        emit CrowdsaleFinalized();
+    }
+
+    modifier onlyNotFinalized() {
+        require (!_finalized, "SENSOCrowdsale: is finalized");
+        _;
+    }
 
 }

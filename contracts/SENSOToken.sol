@@ -33,7 +33,6 @@ contract SENSOToken is ERC20Capped, ERC20Pausable {
         tokensaleWallet = _tokenSaleWallet;
 
         mint(_closedSaleWallet, closedSaleAmount);
-        // mint(_tokenSaleWallet, tokensaleAmount);
         mint(_reserveWallet, reserveAmount);
 
         pause();
