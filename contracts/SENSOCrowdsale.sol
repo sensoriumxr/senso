@@ -53,6 +53,12 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     // (beneficiary => (unfreezeTime => amount))
     mapping (address => mapping (uint256 => uint256)) public frozenTokens;
 
+    // New approval
+    event NewApproval(address indexed beneficiary);
+
+    // New approval for purchasing with specified token
+    event NewTokenApproval(address indexed beneficiary, address token);
+
     /**
      * Event for token purchase logging
      * @param purchaser who paid for the tokens
@@ -291,6 +297,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         require ((freezeShare == 0 && freezeTime == 0) || (freezeShare > 0 && freezeTime > 0), 'SENSOCrowdsale: freezeTime and freezeShare are either both set or 0');
 
         approvals[beneficiary] = Approval(rate, block.timestamp + 7 days, freezeShare, freezeTime);
+        emit NewApproval(beneficiary);
         return true;
     }
 
@@ -343,6 +350,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         require ((freezeShare == 0 && freezeTime == 0) || (freezeShare > 0 && freezeTime > 0), 'SENSOCrowdsale: freezeTime and freezeShare are either both set or 0');
 
         tokenApprovals[beneficiary][tradedToken] = Approval(rate, block.timestamp + 7 days, freezeShare, freezeTime);
+        emit NewTokenApproval(beneficiary, tradedToken);
         return true;
     }
 
