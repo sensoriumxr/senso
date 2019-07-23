@@ -30,8 +30,8 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     // Amount of wei raised
     uint256 private _weiRaised;
 
-    // Finalization
-    bool private _finalized;
+    // Finalization time, 0 if not finalized
+    uint256 private _finalizationTime;
 
     // Amount of tokens raised
     mapping (address => uint256) _tokenRaised;
@@ -41,11 +41,17 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     struct Approval {
         uint256 rate;
         uint256 bestBefore;
+        uint8 freezeShare;
+        uint256 freezeTime;
     }
 
     // Stores approvals per user for token purchase
     // wallet => token => approval
     mapping (address => mapping (address => Approval)) public tokenApprovals;
+
+    // Stores frozen funds
+    // (beneficiary => (unfreezeTime => amount))
+    mapping (address => mapping (uint256 => uint256)) public frozenTokens;
 
     /**
      * Event for token purchase logging
@@ -65,6 +71,24 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @param otherToken address of token used for purchase
      */
     event TokensPurchasedWithTokens(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount, IERC20 otherToken);
+
+    /**
+     * Event that fires on token freeze (when someone buys tokens)
+     * @param beneficiary who will receive tokens
+     * @param frozenUntil earliest possible timestamp of token release
+     * @param frozenAmount exact amount of tokens to be released
+     */
+    event TokensFrozen(address indexed beneficiary, uint256 frozenUntil, uint256 frozenAmount);
+
+    /**
+     * Event that fires on token unfreeze
+     * @param beneficiary who will receive tokens
+     * @param frozenUntil earliest possible timestamp of token release
+     * @param frozenAmount exact amount of tokens to be released
+     */
+    event TokensUnfrozen(address indexed beneficiary, uint256 frozenUntil, uint256 frozenAmount);
+
+
 
     event CrowdsaleFinalized();
 
@@ -135,12 +159,16 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         uint256 weiAmount = msg.value;
         _preValidatePurchase(beneficiary, weiAmount);
 
-        uint256 tokens = _getTokenAmount(weiAmount, beneficiary);
+        (uint256 immediateTokensAmount, uint256 frozenTokensAmount, uint256 freezeTime) =
+            _getTokenAmount(weiAmount, beneficiary);
 
         _weiRaised = _weiRaised.add(weiAmount);
 
-        _deliverTokens(beneficiary, tokens);
-        emit TokensPurchased(msg.sender, beneficiary, weiAmount, tokens);
+        _deliverTokens(beneficiary, immediateTokensAmount, frozenTokensAmount);
+        frozenTokens[beneficiary][freezeTime] += frozenTokensAmount;
+
+        emit TokensPurchased(msg.sender, beneficiary, weiAmount, immediateTokensAmount+frozenTokensAmount);
+        emit TokensFrozen(beneficiary, freezeTime, frozenTokensAmount);
 
         delete approvals[beneficiary];
 
@@ -168,8 +196,8 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @param beneficiary Address performing the token purchase
      * @param tokenAmount Number of tokens to be emitted
      */
-    function _deliverTokens(address beneficiary, uint256 tokenAmount) internal {
-        _token.mint(beneficiary, tokenAmount);
+    function _deliverTokens(address beneficiary, uint256 tokenAmount, uint256 frozenAmount) internal {
+        _token.mint(beneficiary, tokenAmount, frozenAmount);
     }
 
     /**
@@ -177,8 +205,12 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @param weiAmount Value in wei to be converted into tokens
      * @return Number of tokens that can be purchased with the specified _weiAmount
      */
-    function _getTokenAmount(uint256 weiAmount, address beneficiary) internal view returns (uint256) {
-        return weiAmount.mul(approvals[beneficiary].rate).div(1e18);
+    function _getTokenAmount(uint256 weiAmount, address beneficiary) internal view returns (uint256,uint256,uint256) {
+        Approval memory approval = approvals[beneficiary];
+        uint256 totalTokensAmount = weiAmount.mul(approval.rate).div(1e18);
+        uint256 frozenTokensAmount = totalTokensAmount.mul(approval.freezeShare).div(100);
+        uint256 immediateTokensAmount = totalTokensAmount - frozenTokensAmount;
+        return (immediateTokensAmount, frozenTokensAmount, approval.freezeTime);
     }
 
     // Token purchase section
@@ -189,15 +221,20 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * another `nonReentrant` function.
      * @param beneficiary Recipient of the token purchase
      */
-    function buyTokensWithTokens(address beneficiary, IERC20 tradedToken, uint256 tokenAmountPaid) public nonReentrant onlyNotFinalized {
+    function buyTokensWithTokens(address beneficiary, IERC20 tradedToken,
+        uint256 tokenAmountPaid) public nonReentrant onlyNotFinalized
+    {
         _preValidatePurchase(beneficiary, address(tradedToken), tokenAmountPaid);
-
-        uint256 tokenAmountReceived = _getTokenAmountWithTokens(tokenAmountPaid, beneficiary, address(tradedToken));
+        (uint256 immediateTokensAmount, uint256  frozenTokensAmount, uint256  freezeTime) =
+            _getTokenAmountWithTokens(tokenAmountPaid, beneficiary, address(tradedToken));
 
         _tokenRaised[address(tradedToken)] = _tokenRaised[address(tradedToken)].add(tokenAmountPaid);
 
-        _deliverTokens(beneficiary, tokenAmountReceived);
-        emit TokensPurchasedWithTokens(msg.sender, beneficiary, tokenAmountPaid, tokenAmountReceived, tradedToken);
+        _deliverTokens(beneficiary, immediateTokensAmount, frozenTokensAmount);
+        frozenTokens[beneficiary][freezeTime] += frozenTokensAmount;
+
+        emit TokensPurchasedWithTokens(msg.sender, beneficiary, tokenAmountPaid, immediateTokensAmount+frozenTokensAmount, tradedToken);
+        emit TokensFrozen(beneficiary, freezeTime, frozenTokensAmount);
 
         delete tokenApprovals[beneficiary][address(tradedToken)];
 
@@ -211,8 +248,12 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         _isTokenApproved(msg.sender, tradedToken);
     }
 
-    function _getTokenAmountWithTokens(uint256 tokenAmount, address beneficiary, address tradedToken) internal view returns (uint256) {
-        return tokenAmount.mul(tokenApprovals[beneficiary][tradedToken].rate);
+    function _getTokenAmountWithTokens(uint256 tokenAmount, address beneficiary, address tradedToken) internal view returns (uint256,uint256,uint256) {
+        Approval memory approval = tokenApprovals[beneficiary][tradedToken];
+        uint256 totalTokensAmount = tokenAmount.mul(approval.rate);
+        uint256 frozenTokensAmount = totalTokensAmount.mul(approval.freezeShare).div(100);
+        uint256 immediateTokensAmount = totalTokensAmount - frozenTokensAmount;
+        return (immediateTokensAmount, frozenTokensAmount, approval.freezeTime);
     }
 
 
@@ -242,11 +283,14 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     /**
      * @dev Approves `beneficiary` with `rate`.
      */
-    function approve (address beneficiary, uint256 rate)
+    function approve (address beneficiary, uint256 rate, uint8 freezeShare, uint256 freezeTime)
         public onlyOwner() onlyNotFinalized() returns (bool)
     {
-        require (_isNotApproved(beneficiary), 'Investor already have an approval');
-        approvals[beneficiary] = Approval(rate, block.timestamp + 7 days);
+        require (_isNotApproved(beneficiary), 'SENSOCrowdsale: Investor already have an approval');
+        require (freezeShare < 101, 'SENSOCrowdsale: Freeze share exceeds 100%');
+        require ((freezeShare == 0 && freezeTime == 0) || (freezeShare > 0 && freezeTime > 0), 'SENSOCrowdsale: freezeTime and freezeShare are either both set or 0');
+
+        approvals[beneficiary] = Approval(rate, block.timestamp + 7 days, freezeShare, freezeTime);
         return true;
     }
 
@@ -291,11 +335,14 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     /**
      * @dev Approves `beneficiary` with `rate`.
      */
-    function tokenApprove (address beneficiary, address tradedToken, uint256 rate)
+    function tokenApprove (address beneficiary, address tradedToken, uint256 rate, uint8 freezeShare, uint256 freezeTime)
         public onlyOwner() onlyNotFinalized() returns (bool)
     {
         require (_isNotTokenApproved(beneficiary, tradedToken), 'Investor already have an approval');
-        tokenApprovals[beneficiary][tradedToken] = Approval(rate, block.timestamp + 7 days);
+        require (freezeShare < 101, 'Freeze share exceeds 100%');
+        require ((freezeShare == 0 && freezeTime == 0) || (freezeShare > 0 && freezeTime > 0), 'SENSOCrowdsale: freezeTime and freezeShare are either both set or 0');
+
+        tokenApprovals[beneficiary][tradedToken] = Approval(rate, block.timestamp + 7 days, freezeShare, freezeTime);
         return true;
     }
 
@@ -324,7 +371,14 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @return true if the crowdsale is finalized, false otherwise.
      */
     function finalized() public view returns (bool) {
-        return _finalized;
+        return _finalizationTime > 0;
+    }
+
+    /**
+     * @return finalization time
+     */
+    function finalizationTime() public view returns (uint256) {
+        return _finalizationTime;
     }
 
     /**
@@ -333,16 +387,39 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      */
     function finalize() onlyOwner onlyNotFinalized public {
 
-        _finalized = true;
+        _finalizationTime = block.timestamp;
 
-        _token.renounceMinter();
         _token.unpause();
         emit CrowdsaleFinalized();
     }
 
     modifier onlyNotFinalized() {
-        require (!_finalized, "SENSOCrowdsale: is finalized");
+        require (_finalizationTime==0, "SENSOCrowdsale: is finalized");
         _;
+    }
+
+    modifier onlyFinalized() {
+        require (_finalizationTime>0, "SENSOCrowdsale: is not finalized");
+        _;
+    }
+
+    /**
+     * @dev Releases frozen funds (actually mints new tokens). Can be called by
+     * anyone. Can not be called before finalization.
+     * @param beneficiary tokens will be released to this account
+     * @param unfreezeTime earliest possible release time. Should match exactly the time specified in FundsFrozen event
+     */
+
+    function unfreezeTokens(address beneficiary, uint256 unfreezeTime) onlyFinalized public returns(bool) {
+        uint256 frozenAmount = frozenTokens[beneficiary][unfreezeTime];
+
+        require(frozenAmount > 0, 'SENSOCrowdsale: no matching approve for beneficiary');
+        require(unfreezeTime+_finalizationTime <= block.timestamp, 'SENSOCrowdsale: to early to unfreeze');
+
+        _deliverTokens(beneficiary, frozenAmount, 0);
+        delete frozenTokens[beneficiary][unfreezeTime];
+        emit TokensUnfrozen(beneficiary, unfreezeTime, frozenAmount);
+        return true;
     }
 
 }
