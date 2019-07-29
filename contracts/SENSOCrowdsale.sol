@@ -41,6 +41,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     struct Approval {
         uint256 rate;
         uint256 bestBefore;
+        uint256 limit;
         uint8 freezeShare;
         uint256 freezeTime;
     }
@@ -54,10 +55,10 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     mapping (address => mapping (uint256 => uint256)) public frozenTokens;
 
     // New approval
-    event NewApproval(address indexed beneficiary);
+    event NewApproval(address indexed beneficiary, uint256 purchaseLimit);
 
     // New approval for purchasing with specified token
-    event NewTokenApproval(address indexed beneficiary, address token);
+    event NewTokenApproval(address indexed beneficiary, uint256 purchaseLimit, address token);
 
     /**
      * Event for token purchase logging
@@ -216,6 +217,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         uint256 totalTokensAmount = weiAmount.mul(approval.rate).div(1e18);
         uint256 frozenTokensAmount = totalTokensAmount.mul(approval.freezeShare).div(100);
         uint256 immediateTokensAmount = totalTokensAmount - frozenTokensAmount;
+        require (totalTokensAmount <= approval.limit, 'SENSOCrowdsale: purchase exceeds approved limit');
         return (immediateTokensAmount, frozenTokensAmount, approval.freezeTime);
     }
 
@@ -259,6 +261,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         uint256 totalTokensAmount = tokenAmount.mul(approval.rate);
         uint256 frozenTokensAmount = totalTokensAmount.mul(approval.freezeShare).div(100);
         uint256 immediateTokensAmount = totalTokensAmount - frozenTokensAmount;
+        require (totalTokensAmount <= approval.limit, 'SENSOCrowdsale: purchase exceeds approved limit');
         return (immediateTokensAmount, frozenTokensAmount, approval.freezeTime);
     }
 
@@ -289,15 +292,17 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     /**
      * @dev Approves `beneficiary` with `rate`.
      */
-    function approve (address beneficiary, uint256 rate, uint8 freezeShare, uint256 freezeTime)
+    function approve (address beneficiary, uint256 rate, uint256 limit, uint8 freezeShare, uint256 freezeTime)
         public onlyOwner() onlyNotFinalized() returns (bool)
     {
         require (_isNotApproved(beneficiary), 'SENSOCrowdsale: Investor already have an approval');
         require (freezeShare < 101, 'SENSOCrowdsale: Freeze share exceeds 100%');
         require ((freezeShare == 0 && freezeTime == 0) || (freezeShare > 0 && freezeTime > 0), 'SENSOCrowdsale: freezeTime and freezeShare are either both set or 0');
+        require (rate > 0, 'SENSOCrowdsale: rate can not be 0');
+        require (limit > 0, 'SENSOCrowdsale: limit can not be 0');
 
-        approvals[beneficiary] = Approval(rate, block.timestamp + 7 days, freezeShare, freezeTime);
-        emit NewApproval(beneficiary);
+        approvals[beneficiary] = Approval(rate, block.timestamp + 7 days, limit, freezeShare, freezeTime);
+        emit NewApproval(beneficiary, limit);
         return true;
     }
 
@@ -342,15 +347,17 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     /**
      * @dev Approves `beneficiary` with `rate`.
      */
-    function tokenApprove (address beneficiary, address tradedToken, uint256 rate, uint8 freezeShare, uint256 freezeTime)
+    function tokenApprove (address beneficiary, address tradedToken, uint256 rate, uint256 limit, uint8 freezeShare, uint256 freezeTime)
         public onlyOwner() onlyNotFinalized() returns (bool)
     {
         require (_isNotTokenApproved(beneficiary, tradedToken), 'Investor already have an approval');
         require (freezeShare < 101, 'Freeze share exceeds 100%');
         require ((freezeShare == 0 && freezeTime == 0) || (freezeShare > 0 && freezeTime > 0), 'SENSOCrowdsale: freezeTime and freezeShare are either both set or 0');
+        require (rate > 0, 'SENSOCrowdsale: rate can not be 0');
+        require (limit > 0, 'SENSOCrowdsale: limit can not be 0');
 
-        tokenApprovals[beneficiary][tradedToken] = Approval(rate, block.timestamp + 7 days, freezeShare, freezeTime);
-        emit NewTokenApproval(beneficiary, tradedToken);
+        tokenApprovals[beneficiary][tradedToken] = Approval(rate, block.timestamp + 7 days, limit, freezeShare, freezeTime);
+        emit NewTokenApproval(beneficiary, limit, tradedToken);
         return true;
     }
 
