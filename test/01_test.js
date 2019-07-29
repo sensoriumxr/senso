@@ -118,6 +118,7 @@ contract("SENSOCrowdsale", async accounts => {
       reserveAmount: 269200000,
 
       approvalValidTime: 7*24*60*60, // seconds in a week
+      tokenApprovalValidTime: 24*60*60, // seconds in a day
       weiInEther: web3.utils.toBN(1e18)
     }
 
@@ -520,7 +521,7 @@ contract("SENSOCrowdsale", async accounts => {
       let rate1 = (await crowdsale.getTokenApprovalRate(wallets.investor1, tokenA.address)).toNumber()
       assert.equal(rate1, rate)
       let bestBefore1 = (await crowdsale.getTokenApprovalBestBefore(wallets.investor1, tokenA.address)).toNumber()
-      assert.closeTo(bestBefore1, ts+constants.approvalValidTime, 5)
+      assert.closeTo(bestBefore1, ts+constants.tokenApprovalValidTime, 5)
     })
 
     it('Can not buy with more than approved', async () => {
@@ -582,7 +583,7 @@ contract("SENSOCrowdsale", async accounts => {
       let rate1 = (await crowdsale.getTokenApprovalRate(wallets.investor1, tokenA.address)).toNumber()
       assert.equal(rate1, rate)
       let bestBefore1 = (await crowdsale.getTokenApprovalBestBefore(wallets.investor1, tokenA.address)).toNumber()
-      assert.closeTo(bestBefore1, ts+constants.approvalValidTime, 5)
+      assert.closeTo(bestBefore1, ts+constants.tokenApprovalValidTime, 5)
     })
 
     it('Can approve another investor', async () => {
@@ -593,7 +594,7 @@ contract("SENSOCrowdsale", async accounts => {
       let rate1 = (await crowdsale.getTokenApprovalRate(wallets.investor2, tokenB.address)).toNumber()
       assert.equal(rate1, rate)
       let bestBefore1 = (await crowdsale.getTokenApprovalBestBefore(wallets.investor2, tokenB.address)).toNumber()
-      assert.closeTo(bestBefore1, ts+constants.approvalValidTime, 5)
+      assert.closeTo(bestBefore1, ts+constants.tokenApprovalValidTime, 5)
     })
 
     it('Cannot buy with another token', async () => {

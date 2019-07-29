@@ -356,7 +356,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         require (rate > 0, 'SENSOCrowdsale: rate can not be 0');
         require (limit > 0, 'SENSOCrowdsale: limit can not be 0');
 
-        tokenApprovals[beneficiary][tradedToken] = Approval(rate, block.timestamp + 7 days, limit, freezeShare, freezeTime);
+        tokenApprovals[beneficiary][tradedToken] = Approval(rate, block.timestamp + 1 days, limit, freezeShare, freezeTime);
         emit NewTokenApproval(beneficiary, limit, tradedToken);
         return true;
     }
