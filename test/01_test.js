@@ -112,10 +112,10 @@ contract("SENSOCrowdsale", async accounts => {
     tokenB = await TokenB.deployed()
 
     constants = {
-      totalAmount: 769200000,
-      closedSaleAmount: 200000000,
-      crowdSaleAmount: 300000000,
-      reserveAmount: 269200000,
+      totalAmount: 7692000000,
+      closedSaleAmount: 2000000000,
+      crowdSaleAmount: 3000000000,
+      reserveAmount: 2692000000,
 
       approvalValidTime: 7*24*60*60, // seconds in a week
       tokenApprovalValidTime: 24*60*60, // seconds in a day

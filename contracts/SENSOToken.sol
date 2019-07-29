@@ -12,10 +12,10 @@ contract SENSOToken is ERC20Capped, ERC20Pausable {
      *                  reserveAmount
      */
 
-    uint256 private constant tokenCapAmount =   769200000;
-    uint256 private constant closedSaleAmount = 200000000;
-    uint256 private constant tokensaleAmount =  300000000;
-    uint256 private constant reserveAmount =    269200000;
+    uint256 private constant tokenCapAmount =   7692000000;
+    uint256 private constant closedSaleAmount = 2000000000;
+    uint256 private constant tokensaleAmount =  3000000000;
+    uint256 private constant reserveAmount =    2692000000;
 
     // holds amount of total frozen tokens for cap checks
     uint256 private _totalFrozenTokens;
