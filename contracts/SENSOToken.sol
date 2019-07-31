@@ -12,13 +12,13 @@ contract SENSOToken is ERC20Capped, ERC20Pausable {
      *                  reserveAmount
      */
 
-    uint256 private constant tokenCapAmount =   7692000000;
-    uint256 private constant closedSaleAmount = 2000000000;
-    uint256 private constant tokensaleAmount =  3000000000;
-    uint256 private constant reserveAmount =    2692000000;
+    uint256 public constant tokenCapAmount =   7692000000;
+    uint256 public constant closedSaleAmount = 2000000000;
+    uint256 public constant tokensaleAmount =  3000000000;
+    uint256 public constant reserveAmount =    2692000000;
 
     // holds amount of total frozen tokens for cap checks
-    uint256 private _totalFrozenTokens;
+    uint256 public totalFrozenTokens;
 
     /**
      * @dev Admins wallets, used to override pause limitations
@@ -72,8 +72,8 @@ contract SENSOToken is ERC20Capped, ERC20Pausable {
         // if `frozenValue == 0`, this is unfreezing operation
         // we do not have to do this check again
         if (frozenValue != 0) {
-            require(totalSupply().add(_totalFrozenTokens).add(value).add(frozenValue) <= cap(), "ERC20Capped: cap exceeded");
-            _totalFrozenTokens += frozenValue;
+            require(totalSupply().add(totalFrozenTokens).add(value).add(frozenValue) <= cap(), "ERC20Capped: cap exceeded");
+            totalFrozenTokens += frozenValue;
         }
         super._mint(account, value);
     }

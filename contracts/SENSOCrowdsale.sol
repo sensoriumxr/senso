@@ -403,6 +403,11 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     function finalize() onlyOwner onlyNotFinalized public {
 
         _finalizationTime = block.timestamp;
+        _token.mint(_wallet, _token.tokensaleAmount()
+            + _token.closedSaleAmount()
+            - _token.totalFrozenTokens()
+            - _token.totalSupply()
+            , 0);
 
         _token.unpause();
         emit CrowdsaleFinalized();
