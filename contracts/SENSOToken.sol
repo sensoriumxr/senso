@@ -5,6 +5,9 @@ import 'openzeppelin-solidity/contracts/token/ERC20/ERC20Pausable.sol';
 
 contract SENSOToken is ERC20Capped, ERC20Pausable {
 
+    string public symbol = "SENSO";
+    string public name = "Sensorium";
+
     /**
      * @dev Emission constants, constraints:
      * tokenCapAmount = closedSaleAmount +
