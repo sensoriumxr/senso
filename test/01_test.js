@@ -127,7 +127,14 @@ contract("SENSOCrowdsale", async accounts => {
 
       closedSale: accounts[1],
       tokenSale: crowdsale.address,
-      reserveSale: accounts[2],
+
+      advisory: accounts[7],
+      userLoalty: accounts[7],
+      partners: accounts[7],
+
+      team: accounts[8],
+      safeSupport: accounts[9],
+      community: accounts[0],
 
       collectedFunds: accounts[3],
 
@@ -142,8 +149,8 @@ contract("SENSOCrowdsale", async accounts => {
   describe('Initial configuration', async () => {
 
     it('Total supply is 769 200 000', async () => {
-      let b = (await token.totalSupply()).toNumber();
-      assert.equal(b, constants.totalAmount - constants.crowdSaleAmount)
+      let b = (await token.totalSupply()).toNumber()
+      assert.equal(b, constants.totalAmount - constants.crowdSaleAmount - constants.reserveAmount)
     })
  
     it('Closed sale balance is 200 000 000', async () => {
@@ -152,8 +159,13 @@ contract("SENSOCrowdsale", async accounts => {
     })
  
     it('Reserve is 269 200 000', async () => {
-      let b = (await token.balanceOf(wallets.reserveSale)).toNumber();
-      assert.equal(b, constants.reserveAmount)
+      let b1 = (await crowdsale.advisoryAmount()).toNumber()
+      let b2 = (await crowdsale.userLoyaltyAmount()).toNumber()
+      let b3 = (await crowdsale.partnersAmount()).toNumber()
+      let b4 = (await crowdsale.teamAmount()).toNumber()
+      let b5 = (await crowdsale.safeSupportAmount()).toNumber()
+      let b6 = (await crowdsale.communityAmount()).toNumber()
+      assert.equal(b1+b2+b3+b4+b5+b6, constants.reserveAmount)
     })
  
   })
@@ -174,9 +186,34 @@ contract("SENSOCrowdsale", async accounts => {
       )
     })
 
-    it('Reserve can NOT transfer', async () => {
+    it('advisory can NOT transfer', async () => {
       await shoudFail( () => token.transfer(wallets.investor1, amt,
-        { from: wallets.reserveSale }))
+        { from: wallets.advisory }))
+    })
+
+    it('userLoalty can NOT transfer', async () => {
+      await shoudFail( () => token.transfer(wallets.investor1, amt,
+        { from: wallets.userLoalty }))
+    })
+
+    it('partners can NOT transfer', async () => {
+      await shoudFail( () => token.transfer(wallets.investor1, amt,
+        { from: wallets.partners }))
+    })
+
+    it('team can NOT transfer', async () => {
+      await shoudFail( () => token.transfer(wallets.investor1, amt,
+        { from: wallets.team }))
+    })
+
+    it('safeSupport can NOT transfer', async () => {
+      await shoudFail( () => token.transfer(wallets.investor1, amt,
+        { from: wallets.safeSupport }))
+    })
+
+    it('community can NOT transfer', async () => {
+      await shoudFail( () => token.transfer(wallets.investor1, amt,
+        { from: wallets.community }))
     })
 
     it('Investor can NOT transfer', async () => {
@@ -627,24 +664,84 @@ contract("SENSOCrowdsale", async accounts => {
     it('Can be finalized by crowdsale owner', async () => {
       let stopped = await crowdsale.finalized()
       assert.equal(stopped, false)
-      await crowdsale.finalize({ from: wallets.admin })
+      var r = await crowdsale.finalize({ from: wallets.admin })
+      // constants.frozenReserveFreezeTime = r.logs[0].args[1].toNumber()
       stopped = await crowdsale.finalized()
       assert.equal(stopped, true)
     })
 
-    it('Reserve can transfer', async () => {
+    it('Advisory can transfer', async () => {
       let amt = 1
       await shouldChangeBalance(
         () => token.transfer(wallets.investor1, amt,
-          { from: wallets.reserveSale }),
+          { from: wallets.advisory }),
         {
           [token.address] : {
-            [wallets.reserveSale] : -amt,
+            [wallets.advisory] : -amt,
             [wallets.investor1]  : amt
           }
         }
       )
     })
+
+    it('UserLoalty can transfer', async () => {
+      let amt = 1
+      await shouldChangeBalance(
+        () => token.transfer(wallets.investor1, amt,
+          { from: wallets.userLoalty }),
+        {
+          [token.address] : {
+            [wallets.userLoalty] : -amt,
+            [wallets.investor1]  : amt
+          }
+        }
+      )
+    })
+
+    it('Partners can transfer', async () => {
+      let amt = 1
+      await shouldChangeBalance(
+        () => token.transfer(wallets.investor1, amt,
+          { from: wallets.partners }),
+        {
+          [token.address] : {
+            [wallets.partners] : -amt,
+            [wallets.investor1]  : amt
+          }
+        }
+      )
+    })
+
+    it('Team can not unfreeze', async () => {
+      let amt = 1
+      await shoudFail(
+        () => token.unfreezeTokens(wallets.team, 365*24*60*60, { from: wallets.team })
+      )
+    })
+
+    it('Team can transfer', async () => {
+      let amt = 1
+      await shoudFail(
+        () => token.transfer(wallets.investor1, amt, { from: wallets.team })
+      )
+    })
+
+    it('SafeSupport can transfer', async () => {
+      let amt = 1
+      await shoudFail(
+        () => token.transfer(wallets.investor1, amt, { from: wallets.safeSupport })
+      )
+    })
+
+    it('Community can transfer', async () => {
+      let amt = 1
+      await shoudFail(
+        () => token.transfer(wallets.investor1, amt, { from: wallets.community })
+      )
+    })
+
+
+
 
     it('Closed sale can transfer', async () => {
       let amt = 1
@@ -738,6 +835,62 @@ contract("SENSOCrowdsale", async accounts => {
           }
         }
       )
+    })
+
+    describe('12 months wait...', async () => {
+
+      it('Team can transfer', async () => {
+        // console.log(constants)
+
+        await advanceTimeAndBlock(365*24*60*60)
+
+
+        await crowdsale.unfreezeTokens(wallets.team, 365*24*60*60)
+        await crowdsale.unfreezeTokens(wallets.safeSupport, 365*24*60*60)
+        await crowdsale.unfreezeTokens(wallets.community, 365*24*60*60)
+
+        let amt = 1
+        await shouldChangeBalance(
+          () => token.transfer(wallets.investor1, amt,
+            { from: wallets.team }),
+          {
+            [token.address] : {
+              [wallets.team] : -amt,
+              [wallets.investor1]  : amt
+            }
+          }
+        )
+      })
+
+      it('SafeSupport can transfer', async () => {
+        let amt = 1
+        await shouldChangeBalance(
+          () => token.transfer(wallets.investor1, amt,
+            { from: wallets.safeSupport }),
+          {
+            [token.address] : {
+              [wallets.safeSupport] : -amt,
+              [wallets.investor1]  : amt
+            }
+          }
+        )
+      })
+
+      it('Community can transfer', async () => {
+        let amt = 1
+        await shouldChangeBalance(
+          () => token.transfer(wallets.investor1, amt,
+            { from: wallets.community }),
+          {
+            [token.address] : {
+              [wallets.community] : -amt,
+              [wallets.investor1]  : amt
+            }
+          }
+        )
+      })
+
+
     })
 
   })

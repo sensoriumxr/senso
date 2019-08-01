@@ -21,6 +21,20 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     using SafeERC20 for SENSOToken;
     using SafeERC20 for IERC20;
 
+    address private advisoryWallet;
+    address private userLoyaltyWallet;
+    address private partnersWallet;
+    address private teamWallet;
+    address private safeSupportWallet;
+    address private communityWallet;
+
+    uint256 public constant advisoryAmount =    188440000;
+    uint256 public constant userLoyaltyAmount = 403800000;
+    uint256 public constant partnersAmount =    323040000;
+    uint256 public constant teamAmount =        188440000;
+    uint256 public constant safeSupportAmount = 1265240000;
+    uint256 public constant communityAmount =   323040000;
+
     // The token being sold
     SENSOToken private _token;
 
@@ -106,14 +120,34 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @param wallet Address where collected funds will be forwarded to
      * @param closedSale Address of the closed sale wallet. Can transfer funds
      * even if the crowdsale is paused.
-     * @param reserve Address of the reseve wallet.
      */
-    constructor (address payable wallet, address closedSale, address reserve) public Ownable() {
-        require(wallet != address(0), "Crowdsale: wallet is the zero address");
-        require(closedSale != address(0), "Crowdsale: closed sale wallet is the zero address");
-        require(reserve != address(0), "Crowdsale: reserver wallet is the zero address");
+    constructor (address payable wallet, address closedSale,
+        address _advisoryWallet,
+        address _userLoyaltyWallet,
+        address _partnersWallet,
+        address _teamWallet,
+        address _safeSupportWallet,
+        address _communityWallet
 
-        _token = new SENSOToken(closedSale, address(this), reserve);
+        ) public Ownable() {
+        require(wallet            != address(0), "Crowdsale: wallet is the zero address");
+        require(closedSale        != address(0), "Crowdsale: closed sale wallet is the zero address");
+
+        require(_advisoryWallet    != address(0), "Crowdsale: advisory wallet is the zero address");
+        require(_userLoyaltyWallet != address(0), "Crowdsale: userLoyalty wallet is the zero address");
+        require(_partnersWallet    != address(0), "Crowdsale: partners wallet is the zero address");
+        require(_teamWallet        != address(0), "Crowdsale: team wallet is the zero address");
+        require(_safeSupportWallet != address(0), "Crowdsale: safeSupport wallet is the zero address");
+        require(_communityWallet   != address(0), "Crowdsale: community wallet is the zero address");
+
+        advisoryWallet = _advisoryWallet;
+        userLoyaltyWallet = _userLoyaltyWallet;
+        partnersWallet = _partnersWallet;
+        teamWallet = _teamWallet;
+        safeSupportWallet = _safeSupportWallet;
+        communityWallet = _communityWallet;
+
+        _token = new SENSOToken(closedSale, address(this));
         _wallet = wallet;
     }
 
@@ -408,6 +442,18 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
             - _token.totalFrozenTokens()
             - _token.totalSupply()
             , 0);
+
+        _token.mint(advisoryWallet, advisoryAmount, 0);
+        _token.mint(userLoyaltyWallet, userLoyaltyAmount, 0);
+        _token.mint(partnersWallet, partnersAmount, 0);
+        uint256 freezeTime = 365 days;
+
+        frozenTokens[teamWallet][freezeTime]        += teamAmount;
+        frozenTokens[safeSupportWallet][freezeTime] += safeSupportAmount;
+        frozenTokens[communityWallet][freezeTime]   += communityAmount;
+        emit TokensFrozen(teamWallet, freezeTime, teamAmount);
+        emit TokensFrozen(safeSupportWallet, freezeTime, safeSupportAmount);
+        emit TokensFrozen(communityWallet, freezeTime, communityAmount);
 
         _token.unpause();
         emit CrowdsaleFinalized();
