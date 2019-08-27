@@ -73,7 +73,7 @@ contract SENSOToken is ERC20Capped, ERC20Pausable {
         // we do not have to do this check again
         if (frozenValue != 0) {
             require(totalSupply().add(totalFrozenTokens).add(value).add(frozenValue) <= cap(), "ERC20Capped: cap exceeded");
-            totalFrozenTokens += frozenValue;
+            totalFrozenTokens = totalFrozenTokens.add(frozenValue);
         }
         super._mint(account, value);
     }

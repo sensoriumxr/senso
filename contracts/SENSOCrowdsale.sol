@@ -202,14 +202,14 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
             _getTokenAmount(weiAmount, beneficiary);
 
         _preValidatePurchase(beneficiary, weiAmount,
-            immediateTokensAmount+frozenTokensAmount);
+            immediateTokensAmount.add(frozenTokensAmount));
 
         _weiRaised = _weiRaised.add(weiAmount);
 
         _deliverTokens(beneficiary, immediateTokensAmount, frozenTokensAmount);
-        frozenTokens[beneficiary][freezeTime] += frozenTokensAmount;
+        frozenTokens[beneficiary][freezeTime] = frozenTokens[beneficiary][freezeTime].add(frozenTokensAmount);
 
-        emit TokensPurchased(msg.sender, beneficiary, weiAmount, immediateTokensAmount+frozenTokensAmount);
+        emit TokensPurchased(msg.sender, beneficiary, weiAmount, immediateTokensAmount.add(frozenTokensAmount));
         emit TokensFrozen(beneficiary, freezeTime, frozenTokensAmount);
 
         delete approvals[beneficiary];
@@ -229,7 +229,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     function _preValidatePurchase(address beneficiary, uint256 weiAmount, uint256 tokensPurchasedAmound) internal view {
         require(beneficiary != address(0), "Crowdsale: beneficiary is the zero address");
         require(weiAmount != 0, "Crowdsale: weiAmount is 0");
-        require(tokensPurchasedAmound.add(_token.totalSupply()).add(_token.totalFrozenTokens()) <= _token.tokensaleAmount() + _token.closedSaleAmount());
+        require(tokensPurchasedAmound.add(_token.totalSupply()).add(_token.totalFrozenTokens()) <= _token.tokensaleAmount().add(_token.closedSaleAmount()));
         _isApproved(msg.sender);
     }
 
@@ -252,7 +252,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         Approval memory approval = approvals[beneficiary];
         uint256 totalTokensAmount = weiAmount.mul(approval.rate).div(1e18);
         uint256 frozenTokensAmount = totalTokensAmount.mul(approval.freezeShare).div(100);
-        uint256 immediateTokensAmount = totalTokensAmount - frozenTokensAmount;
+        uint256 immediateTokensAmount = totalTokensAmount.sub(frozenTokensAmount);
         require (totalTokensAmount <= approval.limit, 'SENSOCrowdsale: purchase exceeds approved limit');
         return (immediateTokensAmount, frozenTokensAmount, approval.freezeTime);
     }
@@ -270,14 +270,14 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     {
         (uint256 immediateTokensAmount, uint256  frozenTokensAmount, uint256  freezeTime) =
             _getTokenAmountWithTokens(tokenAmountPaid, beneficiary, address(tradedToken));
-        _preValidatePurchase(beneficiary, address(tradedToken), tokenAmountPaid, immediateTokensAmount+frozenTokensAmount);
+        _preValidatePurchase(beneficiary, address(tradedToken), tokenAmountPaid, immediateTokensAmount.add(frozenTokensAmount));
 
         _tokenRaised[address(tradedToken)] = _tokenRaised[address(tradedToken)].add(tokenAmountPaid);
 
         _deliverTokens(beneficiary, immediateTokensAmount, frozenTokensAmount);
-        frozenTokens[beneficiary][freezeTime] += frozenTokensAmount;
+        frozenTokens[beneficiary][freezeTime] = frozenTokens[beneficiary][freezeTime].add(frozenTokensAmount);
 
-        emit TokensPurchasedWithTokens(msg.sender, beneficiary, tokenAmountPaid, immediateTokensAmount+frozenTokensAmount, tradedToken);
+        emit TokensPurchasedWithTokens(msg.sender, beneficiary, tokenAmountPaid, immediateTokensAmount.add(frozenTokensAmount), tradedToken);
         emit TokensFrozen(beneficiary, freezeTime, frozenTokensAmount);
 
         delete tokenApprovals[beneficiary][address(tradedToken)];
@@ -289,7 +289,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         require(beneficiary != address(0), "Crowdsale: beneficiary is the zero address");
         require(tradedToken != address(0), "Crowdsale: tradedToken is the zero address");
         require(tokenAmount != 0, "Crowdsale: tokenAmountPaid is 0");
-        require(tokensPurchasedAmound.add(_token.totalSupply()).add(_token.totalFrozenTokens()) <= _token.tokensaleAmount() + _token.closedSaleAmount());
+        require(tokensPurchasedAmound.add(_token.totalSupply()).add(_token.totalFrozenTokens()) <= _token.tokensaleAmount().add(_token.closedSaleAmount()));
         _isTokenApproved(msg.sender, tradedToken);
     }
 
@@ -297,7 +297,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         Approval memory approval = tokenApprovals[beneficiary][tradedToken];
         uint256 totalTokensAmount = tokenAmount.mul(approval.rate);
         uint256 frozenTokensAmount = totalTokensAmount.mul(approval.freezeShare).div(100);
-        uint256 immediateTokensAmount = totalTokensAmount - frozenTokensAmount;
+        uint256 immediateTokensAmount = totalTokensAmount.sub(frozenTokensAmount);
         require (totalTokensAmount <= approval.limit, 'SENSOCrowdsale: purchase exceeds approved limit');
         return (immediateTokensAmount, frozenTokensAmount, approval.freezeTime);
     }
@@ -443,9 +443,9 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
 
         _finalizationTime = block.timestamp;
         _token.mint(_wallet, _token.tokensaleAmount()
-            + _token.closedSaleAmount()
-            - _token.totalFrozenTokens()
-            - _token.totalSupply()
+            .add(_token.closedSaleAmount())
+            .sub(_token.totalFrozenTokens())
+            .sub(_token.totalSupply())
             , 0);
 
         _token.mint(advisoryWallet, advisoryAmount, 0);
@@ -453,9 +453,9 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         _token.mint(partnersWallet, partnersAmount, 0);
         uint256 freezeTime = 365 days;
 
-        frozenTokens[teamWallet][freezeTime]        += teamAmount;
-        frozenTokens[safeSupportWallet][freezeTime] += safeSupportAmount;
-        frozenTokens[communityWallet][freezeTime]   += communityAmount;
+        frozenTokens[teamWallet][freezeTime]        = frozenTokens[teamWallet][freezeTime].add(teamAmount);
+        frozenTokens[safeSupportWallet][freezeTime] = frozenTokens[safeSupportWallet][freezeTime].add(safeSupportAmount);
+        frozenTokens[communityWallet][freezeTime]   = frozenTokens[communityWallet][freezeTime].add(communityAmount);
         emit TokensFrozen(teamWallet, freezeTime, teamAmount);
         emit TokensFrozen(safeSupportWallet, freezeTime, safeSupportAmount);
         emit TokensFrozen(communityWallet, freezeTime, communityAmount);
@@ -485,7 +485,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         uint256 frozenAmount = frozenTokens[beneficiary][unfreezeTime];
 
         require(frozenAmount > 0, 'SENSOCrowdsale: no matching approve for beneficiary');
-        require(unfreezeTime+_finalizationTime <= block.timestamp, 'SENSOCrowdsale: to early to unfreeze');
+        require(unfreezeTime.add(_finalizationTime) <= block.timestamp, 'SENSOCrowdsale: to early to unfreeze');
 
         _deliverTokens(beneficiary, frozenAmount, 0);
         delete frozenTokens[beneficiary][unfreezeTime];
