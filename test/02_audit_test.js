@@ -47,7 +47,7 @@ contract("SENSOCrowdsale", async accounts => {
     }
   })
 
-  describe('Initial configuration', async () => {
+  describe('Crowdsale stage', async () => {
 
     it('Can purchase tokens', async () => {
       var amt = 10;
@@ -107,6 +107,18 @@ contract("SENSOCrowdsale", async accounts => {
           await crowdsale.buyTokens(wallets.investor2, {
             from: wallets.investor2,
             value: totalWeiPaid
+          })
+        }
+      )
+
+      let tokensPaid = 1
+      await tokenA.mint(wallets.investor2, 1)
+      await tokenA.approve(crowdsale.address, tokensPaid, { from: wallets.investor2 })
+      await crowdsale.tokenApprove(wallets.investor2, tokenA.address, amt, amt, 0, 0)
+      await utils.shouldFail(
+        async () => {
+          await crowdsale.buyTokensWithTokens(wallets.investor2, tokenA.address, tokensPaid, {
+            from: wallets.investor2
           })
         }
       )
