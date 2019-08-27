@@ -198,10 +198,11 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      */
     function buyTokens(address beneficiary) public nonReentrant onlyNotFinalized payable {
         uint256 weiAmount = msg.value;
-        _preValidatePurchase(beneficiary, weiAmount);
-
         (uint256 immediateTokensAmount, uint256 frozenTokensAmount, uint256 freezeTime) =
             _getTokenAmount(weiAmount, beneficiary);
+
+        _preValidatePurchase(beneficiary, weiAmount,
+            immediateTokensAmount+frozenTokensAmount);
 
         _weiRaised = _weiRaised.add(weiAmount);
 
@@ -225,9 +226,10 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @param beneficiary Address performing the token purchase
      * @param weiAmount Value in wei involved in the purchase
      */
-    function _preValidatePurchase(address beneficiary, uint256 weiAmount) internal view {
+    function _preValidatePurchase(address beneficiary, uint256 weiAmount, uint256 tokensPurchasedAmound) internal view {
         require(beneficiary != address(0), "Crowdsale: beneficiary is the zero address");
         require(weiAmount != 0, "Crowdsale: weiAmount is 0");
+        require(tokensPurchasedAmound.add(_token.totalSupply()).add(_token.totalFrozenTokens()) <= _token.tokensaleAmount() + _token.closedSaleAmount());
         _isApproved(msg.sender);
     }
 
@@ -266,9 +268,9 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     function buyTokensWithTokens(address beneficiary, IERC20 tradedToken,
         uint256 tokenAmountPaid) public nonReentrant onlyNotFinalized
     {
-        _preValidatePurchase(beneficiary, address(tradedToken), tokenAmountPaid);
         (uint256 immediateTokensAmount, uint256  frozenTokensAmount, uint256  freezeTime) =
             _getTokenAmountWithTokens(tokenAmountPaid, beneficiary, address(tradedToken));
+        _preValidatePurchase(beneficiary, address(tradedToken), tokenAmountPaid, immediateTokensAmount+frozenTokensAmount);
 
         _tokenRaised[address(tradedToken)] = _tokenRaised[address(tradedToken)].add(tokenAmountPaid);
 
@@ -283,10 +285,11 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         tradedToken.safeTransferFrom(beneficiary, _wallet, tokenAmountPaid);
     }
 
-    function _preValidatePurchase(address beneficiary, address tradedToken, uint256 tokenAmount) internal view {
+    function _preValidatePurchase(address beneficiary, address tradedToken, uint256 tokenAmount, uint256 tokensPurchasedAmound) internal view {
         require(beneficiary != address(0), "Crowdsale: beneficiary is the zero address");
         require(tradedToken != address(0), "Crowdsale: tradedToken is the zero address");
         require(tokenAmount != 0, "Crowdsale: tokenAmountPaid is 0");
+        require(tokensPurchasedAmound.add(_token.totalSupply()).add(_token.totalFrozenTokens()) <= _token.tokensaleAmount() + _token.closedSaleAmount());
         _isTokenApproved(msg.sender, tradedToken);
     }
 
