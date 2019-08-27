@@ -162,6 +162,34 @@ contract("SENSOCrowdsale", async accounts => {
       assert.equal(stopped, true)
     })
 
+    it('Wallets can not unfreeze tokens directly in token contract', async () => {
+      await utils.shouldFail(async () => {
+        await token.unfreezeTokens(1, { from: wallets.admin })
+      })
+      await utils.shouldFail(async () => {
+        await token.unfreezeTokens(1, { from: wallets.investor1 })
+      })
+    })
+
+    it('Frozen tokens updated corretly', async () => {
+      let amt = 10
+      let freezeTime = 1
+
+      await utils.advanceTimeAndBlock(freezeTime);
+      assert.equal(amt, (await token.totalFrozenTokens()).toNumber())
+
+      await utils.shouldChangeBalance(
+        () => crowdsale.unfreezeTokens(wallets.investor2, freezeTime),
+        {
+          [token.address] : {
+            [wallets.investor2] : amt,
+          }
+        }
+      )
+
+      assert.equal(0, (await token.totalFrozenTokens()).toNumber())
+    })
+
   })
 
 })

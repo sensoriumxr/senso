@@ -489,6 +489,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
 
         _deliverTokens(beneficiary, frozenAmount, 0);
         delete frozenTokens[beneficiary][unfreezeTime];
+        _token.unfreezeTokens(frozenAmount);
         emit TokensUnfrozen(beneficiary, unfreezeTime, frozenAmount);
         return true;
     }

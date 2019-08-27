@@ -78,5 +78,14 @@ contract SENSOToken is ERC20Capped, ERC20Pausable {
         super._mint(account, value);
     }
 
+    /**
+     * Reduces the value of frozen tokens counter
+     *
+     * @param unfrozenValue amount of tokens to be unfrozen
+     */
+    function unfreezeTokens(uint256 unfrozenValue) public onlyMinter returns (bool) {
+        totalFrozenTokens = totalFrozenTokens.sub(unfrozenValue);
+        return true;
+    }
 
 }
