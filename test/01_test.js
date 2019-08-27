@@ -2,106 +2,7 @@ const SENSOToken = artifacts.require("SENSOToken")
 const SENSOCrowdsale = artifacts.require("SENSOCrowdsale")
 const TokenA = artifacts.require("TokenA")
 const TokenB = artifacts.require("TokenB")
-
-// advance time and block
-// source https://medium.com/edgefund/time-travelling-truffle-tests-f581c1964687
-
-advanceTimeAndBlock = async (time) => {
-    await advanceTime(time);
-    await advanceBlock();
-
-    return Promise.resolve(web3.eth.getBlock('latest'));
-}
-
-advanceTime = (time) => {
-    return new Promise((resolve, reject) => {
-        web3.currentProvider.send({
-            jsonrpc: "2.0",
-            method: "evm_increaseTime",
-            params: [time],
-            id: new Date().getTime()
-        }, (err, result) => {
-            if (err) { return reject(err); }
-            return resolve(result);
-        });
-    });
-}
-
-advanceBlock = () => {
-    return new Promise((resolve, reject) => {
-        web3.currentProvider.send({
-            jsonrpc: "2.0",
-            method: "evm_mine",
-            id: new Date().getTime()
-        }, (err, result) => {
-            if (err) { return reject(err); }
-            const newBlockHash = web3.eth.getBlock('latest').hash;
-
-            return resolve(newBlockHash)
-        });
-    });
-}
-
-// end of advance time and block
-
-function assertDeltas(before, after, delta) {
-  let k1 = Object.keys(before)
-  for (var i=0; i<k1.length; i++) {
-    let k2 = Object.keys(before[k1[i]])
-    for (var j=0; j<k2.length; j++) {
-      if (k1[i].toLowerCase() === 'eth') {
-        assert.closeTo(after[k1[i]][k2[j]] - before[k1[i]][k2[j]], delta[k1[i]][k2[j]], 2000000000000000) // ignoring ~tx cost
-      } else {
-        assert.equal(after[k1[i]][k2[j]] - before[k1[i]][k2[j]], delta[k1[i]][k2[j]])
-      }
-    }
-  }
-}
-
-async function deltaBalances(delta) {
-  res = {}
-  let k1 = Object.keys(delta)
-  for (var i=0; i<k1.length; i++) {
-    let k2 = Object.keys(delta[k1[i]])
-    if (!res[k1[i]]) {
-      res[k1[i]] = {}
-    }
-    var fBalance = (x) => -0.1
-    if (k1[i].toLowerCase() === 'eth') {
-      fBalance = async (x) => web3.eth.getBalance(x)
-    } else {
-      fBalance = async (x) => {
-        let abi = k1[i] === token.address ? token.abi : tokenA.abi
-        let c = new web3.eth.Contract(abi, k1[i])
-        return await c.methods.balanceOf(x).call()
-      }
-    }
-    for (var j=0; j<k2.length; j++) {
-      res[k1[i]][k2[j]] = await fBalance(k2[j])
-      // console.log(k1[i], k2[j], res[k1[i]][k2[j]])
-    }
-  }
-  return res
-}
-
-async function shouldChangeBalance (f, deltas) {
-  before = await  deltaBalances(deltas)
-  await f()
-  after = await  deltaBalances(deltas)
-  assertDeltas(before, after, deltas)
-}
-
-
-
-async function shoudFail (f) {
-  let err = null
-  try {
-    let b = await f()
-  } catch(error) {
-    err = error
-  }
-  assert.ok(err instanceof Error)
-}
+const utils = require('./utils.js')
 
 contract("SENSOCrowdsale", async accounts => {
 
@@ -174,7 +75,7 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('Closed sale wallet can transfer', async () => {
       let amt = 1
-      await shouldChangeBalance(
+      await utils.shouldChangeBalance(
         () => token.transfer(wallets.investor1, amt,
           { from: wallets.closedSale }),
         {
@@ -187,37 +88,37 @@ contract("SENSOCrowdsale", async accounts => {
     })
 
     it('advisory can NOT transfer', async () => {
-      await shoudFail( () => token.transfer(wallets.investor1, amt,
+      await utils.shouldFail( () => token.transfer(wallets.investor1, amt,
         { from: wallets.advisory }))
     })
 
     it('userLoalty can NOT transfer', async () => {
-      await shoudFail( () => token.transfer(wallets.investor1, amt,
+      await utils.shouldFail( () => token.transfer(wallets.investor1, amt,
         { from: wallets.userLoalty }))
     })
 
     it('partners can NOT transfer', async () => {
-      await shoudFail( () => token.transfer(wallets.investor1, amt,
+      await utils.shouldFail( () => token.transfer(wallets.investor1, amt,
         { from: wallets.partners }))
     })
 
     it('team can NOT transfer', async () => {
-      await shoudFail( () => token.transfer(wallets.investor1, amt,
+      await utils.shouldFail( () => token.transfer(wallets.investor1, amt,
         { from: wallets.team }))
     })
 
     it('safeSupport can NOT transfer', async () => {
-      await shoudFail( () => token.transfer(wallets.investor1, amt,
+      await utils.shouldFail( () => token.transfer(wallets.investor1, amt,
         { from: wallets.safeSupport }))
     })
 
     it('community can NOT transfer', async () => {
-      await shoudFail( () => token.transfer(wallets.investor1, amt,
+      await utils.shouldFail( () => token.transfer(wallets.investor1, amt,
         { from: wallets.community }))
     })
 
     it('Investor can NOT transfer', async () => {
-      await shoudFail( () => token.transfer(wallets.investor1, amt,
+      await utils.shouldFail( () => token.transfer(wallets.investor1, amt,
         { from: wallets.tokenSale }))
     })
 
@@ -226,7 +127,7 @@ contract("SENSOCrowdsale", async accounts => {
   describe('Approvals', async () => {
 
     it('Cannot buy before approval', async () => {
-      await shoudFail(async () => crowdsale.buyTokens(wallets.investor1,
+      await utils.shouldFail(async () => crowdsale.buyTokens(wallets.investor1,
         { from: wallets.investor1 }) )
     })
 
@@ -236,7 +137,7 @@ contract("SENSOCrowdsale", async accounts => {
         let rate = 100
         var b = (await crowdsale.approve(wallets.investor2, rate, 999999, 0, 0)).receipt.blockNumber
         var ts = (await web3.eth.getBlock(b)).timestamp;
-        await shoudFail(async () => crowdsale.getApprovalRate(wallets.investor1))
+        await utils.shouldFail(async () => crowdsale.getApprovalRate(wallets.investor1))
         let rate2 = (await crowdsale.getApprovalRate(wallets.investor2)).toNumber()
         assert.equal(rate2, rate)
         let bestBefore2 = (await crowdsale.getApprovalBestBefore(wallets.investor2)).toNumber()
@@ -244,11 +145,11 @@ contract("SENSOCrowdsale", async accounts => {
       })
 
       it('Can not approve second time', async () => {
-        await shoudFail(async () => crowdsale.approve(wallets.investor2, 1, 999999, 0, 0))
+        await utils.shouldFail(async () => crowdsale.approve(wallets.investor2, 1, 999999, 0, 0))
       })
 
       it('Can not approve with 0 limit', async () => {
-        await shoudFail(async () => crowdsale.approve(wallets.investor1, 1, 0, 0, 0))
+        await utils.shouldFail(async () => crowdsale.approve(wallets.investor1, 1, 0, 0, 0))
       })
 
       it('Can approve another investor', async () => {
@@ -267,7 +168,7 @@ contract("SENSOCrowdsale", async accounts => {
         let rate = 5
         let amt = 20
         let totalWeiPaid = constants.weiInEther*amt/rate
-        await shoudFail(
+        await utils.shouldFail(
           async () => {
             await crowdsale.buyTokens(wallets.investor1, {
               from: wallets.investor1,
@@ -281,7 +182,7 @@ contract("SENSOCrowdsale", async accounts => {
         let rate = 5
         let amt = 10
         let totalWeiPaid = constants.weiInEther*amt/rate
-        await shouldChangeBalance(
+        await utils.shouldChangeBalance(
           async () => {
             await crowdsale.buyTokens(wallets.investor1, {
               from: wallets.investor1,
@@ -298,36 +199,36 @@ contract("SENSOCrowdsale", async accounts => {
       })
 
       // it('Cannot be purchased by a random person', async () => {
-      //   shoudFail(async () => crowdsale.buyTokens(wallets.noone, {
+      //   utils.shouldFail(async () => crowdsale.buyTokens(wallets.noone, {
       //     from: wallets.noone,
       //     value: 10*constants.weiInEther
       //   }))
       // })
 
       it('Cannot be purchased by a random person in favour of someone approved', async () => {
-        await shoudFail(async () => crowdsale.buyTokens(wallets.investor2, {
+        await utils.shouldFail(async () => crowdsale.buyTokens(wallets.investor2, {
           from: wallets.noone,
           value: 10*constants.weiInEther
         }))
       })
 
       // it('Cannot be purchased by an approved account in favour of random person', async () => {
-      //   shoudFail(async () => crowdsale.buyTokens(wallets.noone, {
+      //   utils.shouldFail(async () => crowdsale.buyTokens(wallets.noone, {
       //     from: wallets.investor2,
       //     value: 10*constants.weiInEther
       //   }))
       // })
 
       it('Rate is zeroed after the purchase', async () => {
-        await shoudFail(async () => crowdsale.getApprovalRate(wallets.investor1))
+        await utils.shouldFail(async () => crowdsale.getApprovalRate(wallets.investor1))
       })
 
       it('Best before is zeroed after the purchase', async () => {
-        await shoudFail(async () => crowdsale.getApprovalBestBefore(wallets.investor1))
+        await utils.shouldFail(async () => crowdsale.getApprovalBestBefore(wallets.investor1))
       })
 
       it('Can not buy again', async () => {
-        await shoudFail(async () => crowdsale.buyTokens(
+        await utils.shouldFail(async () => crowdsale.buyTokens(
           wallets.investor1, {
             from: wallets.investor1,
             value: constants.weiInEther*amt/rate
@@ -338,7 +239,7 @@ contract("SENSOCrowdsale", async accounts => {
       it('Another investor can buy', async () => {
         let rate = 100
         let amt = 33
-        await shouldChangeBalance(
+        await utils.shouldChangeBalance(
           async () => {
             await crowdsale.buyTokens(wallets.investor2, {
               from: wallets.investor2,
@@ -355,15 +256,15 @@ contract("SENSOCrowdsale", async accounts => {
     describe('Initial approval (with freeze)', async () => {
 
       it('Can NOT approve with no freeze time', async () => {
-        await shoudFail(async () => crowdsale.approve(wallets.investor2, rate, 999999, 10, 0))
+        await utils.shouldFail(async () => crowdsale.approve(wallets.investor2, rate, 999999, 10, 0))
       })
 
       it('Can NOT approve with no share', async () => {
-        await shoudFail(async () => crowdsale.approve(wallets.investor2, rate, 999999, 0, 10))
+        await utils.shouldFail(async () => crowdsale.approve(wallets.investor2, rate, 999999, 0, 10))
       })
 
       it('Can NOT approve with frozen share exceeeds 100%', async () => {
-        await shoudFail(async () => crowdsale.approve(wallets.investor2, rate, 999999, 101, 10))
+        await utils.shouldFail(async () => crowdsale.approve(wallets.investor2, rate, 999999, 101, 10))
       })
 
       it('Can approve', async () => {
@@ -372,7 +273,7 @@ contract("SENSOCrowdsale", async accounts => {
         let freezeTime = 1
         var b = (await crowdsale.approve(wallets.investor3, rate, 999999, freezeShare, freezeTime)).receipt.blockNumber
         var ts = (await web3.eth.getBlock(b)).timestamp;
-        await shoudFail(async () => crowdsale.getApprovalRate(wallets.investor1))
+        await utils.shouldFail(async () => crowdsale.getApprovalRate(wallets.investor1))
         let rate2 = (await crowdsale.getApprovalRate(wallets.investor3)).toNumber()
         assert.equal(rate2, rate)
         let bestBefore2 = (await crowdsale.getApprovalBestBefore(wallets.investor3)).toNumber()
@@ -385,7 +286,7 @@ contract("SENSOCrowdsale", async accounts => {
         let freezeShare = 10
         let freezeTime = 1
         let totalWeiPaid = constants.weiInEther*amt/rate
-        await shouldChangeBalance(
+        await utils.shouldChangeBalance(
           async () => {
             await crowdsale.buyTokens(wallets.investor3, {
               from: wallets.investor3,
@@ -415,7 +316,7 @@ contract("SENSOCrowdsale", async accounts => {
         let freezeTime = 1
         var b = (await crowdsale.approve(wallets.investor3, rate, 999999, freezeShare, freezeTime)).receipt.blockNumber
         var ts = (await web3.eth.getBlock(b)).timestamp;
-        await shoudFail(async () =>  crowdsale.getApprovalRate(wallets.investor1))
+        await utils.shouldFail(async () =>  crowdsale.getApprovalRate(wallets.investor1))
         let rate2 = (await crowdsale.getApprovalRate(wallets.investor3)).toNumber()
         assert.equal(rate2, rate)
         let bestBefore2 = (await crowdsale.getApprovalBestBefore(wallets.investor3)).toNumber()
@@ -428,7 +329,7 @@ contract("SENSOCrowdsale", async accounts => {
         let freezeShare = 20
         let freezeTime = 1
         let totalWeiPaid = constants.weiInEther*amt/rate
-        await shouldChangeBalance(
+        await utils.shouldChangeBalance(
           async () => {
             await crowdsale.buyTokens(wallets.investor3, {
               from: wallets.investor3,
@@ -456,7 +357,7 @@ contract("SENSOCrowdsale", async accounts => {
         let freezeTime = 10
         var b = (await crowdsale.approve(wallets.investor3, rate, 999999, freezeShare, freezeTime)).receipt.blockNumber
         var ts = (await web3.eth.getBlock(b)).timestamp;
-        await shoudFail(async () =>  crowdsale.getApprovalRate(wallets.investor1))
+        await utils.shouldFail(async () =>  crowdsale.getApprovalRate(wallets.investor1))
         let rate2 = (await crowdsale.getApprovalRate(wallets.investor3)).toNumber()
         assert.equal(rate2, rate)
         let bestBefore2 = (await crowdsale.getApprovalBestBefore(wallets.investor3)).toNumber()
@@ -469,7 +370,7 @@ contract("SENSOCrowdsale", async accounts => {
         let freezeShare = 20
         let freezeTime = 10
         let totalWeiPaid = constants.weiInEther*amt/rate
-        await shouldChangeBalance(
+        await utils.shouldChangeBalance(
           async () => {
             await crowdsale.buyTokens(wallets.investor3, {
               from: wallets.investor3,
@@ -511,7 +412,7 @@ contract("SENSOCrowdsale", async accounts => {
       it('Can buy using new approval', async () => {
         let rate = 12
         let amt = 7
-        await shouldChangeBalance(
+        await utils.shouldChangeBalance(
           async () => {
             await crowdsale.buyTokens(wallets.investor1, {
               from: wallets.investor1,
@@ -539,7 +440,7 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('Cannot be bought if not approved', async () => {
       await tokenA.approve(crowdsale.address, 1000, { from: wallets.noone })
-      await shoudFail(async () => crowdsale.buyTokensWithTokens(
+      await utils.shouldFail(async () => crowdsale.buyTokensWithTokens(
         wallets.noone, tokenA.address, 10, {
           from: wallets.noone
         })
@@ -547,14 +448,14 @@ contract("SENSOCrowdsale", async accounts => {
     })
 
     it('Can not approve with 0 limit', async () => {
-      await shoudFail(async () => crowdsale.tokenApprove(wallets.investor1, tokenA.address, 1, 0, 0, 0))
+      await utils.shouldFail(async () => crowdsale.tokenApprove(wallets.investor1, tokenA.address, 1, 0, 0, 0))
     })
 
     it('Can approve', async () => {
       let rate = 3
       var b = (await crowdsale.tokenApprove(wallets.investor1, tokenA.address, rate, 3, 0, 0)).receipt.blockNumber
       var ts = (await web3.eth.getBlock(b)).timestamp;
-      await shoudFail(async () => crowdsale.getApprovalRate(wallets.investor2))
+      await utils.shouldFail(async () => crowdsale.getApprovalRate(wallets.investor2))
       let rate1 = (await crowdsale.getTokenApprovalRate(wallets.investor1, tokenA.address)).toNumber()
       assert.equal(rate1, rate)
       let bestBefore1 = (await crowdsale.getTokenApprovalBestBefore(wallets.investor1, tokenA.address)).toNumber()
@@ -565,7 +466,7 @@ contract("SENSOCrowdsale", async accounts => {
       let rate = 3
       let amt = 30
       await tokenA.approve(crowdsale.address, amt/rate, { from: wallets.investor1 })
-      await shoudFail(
+      await utils.shouldFail(
         async () => {
           await crowdsale.buyTokensWithTokens(wallets.investor1, tokenA.address, amt/rate, {
             from: wallets.investor1
@@ -578,7 +479,7 @@ contract("SENSOCrowdsale", async accounts => {
       let rate = 3
       let amt = 3
       await tokenA.approve(crowdsale.address, amt/rate, { from: wallets.investor1 })
-      await shouldChangeBalance(
+      await utils.shouldChangeBalance(
         async () => {
           await crowdsale.buyTokensWithTokens(wallets.investor1, tokenA.address, amt/rate, {
             from: wallets.investor1
@@ -596,16 +497,16 @@ contract("SENSOCrowdsale", async accounts => {
     })
 
     it('Rate is zeroed after the purchase', async () => {
-      await shoudFail(async () => crowdsale.getTokenApprovalRate(wallets.investor1, tokenA.address))
+      await utils.shouldFail(async () => crowdsale.getTokenApprovalRate(wallets.investor1, tokenA.address))
     })
 
     it('Best before is zeroed after the purchase', async () => {
-      await shoudFail(async () => crowdsale.getTokenApprovalBestBefore(wallets.investor1, tokenA.address))
+      await utils.shouldFail(async () => crowdsale.getTokenApprovalBestBefore(wallets.investor1, tokenA.address))
     })
 
     it('Cannot buy again', async () => {
       await tokenA.approve(crowdsale.address, 1000, { from: wallets.noone })
-      await shoudFail(async () => crowdsale.buyTokensWithTokens(
+      await utils.shouldFail(async () => crowdsale.buyTokensWithTokens(
         wallets.noone, tokenA.address, 10, {
           from: wallets.investor1
         })
@@ -616,7 +517,7 @@ contract("SENSOCrowdsale", async accounts => {
       let rate = 2
       var b = (await crowdsale.tokenApprove(wallets.investor1, tokenA.address, rate, 999999, 0, 0)).receipt.blockNumber
       var ts = (await web3.eth.getBlock(b)).timestamp;
-      await shoudFail(async () => crowdsale.getApprovalRate(wallets.investor2))
+      await utils.shouldFail(async () => crowdsale.getApprovalRate(wallets.investor2))
       let rate1 = (await crowdsale.getTokenApprovalRate(wallets.investor1, tokenA.address)).toNumber()
       assert.equal(rate1, rate)
       let bestBefore1 = (await crowdsale.getTokenApprovalBestBefore(wallets.investor1, tokenA.address)).toNumber()
@@ -627,7 +528,7 @@ contract("SENSOCrowdsale", async accounts => {
       let rate = 1
       var b = (await crowdsale.tokenApprove(wallets.investor2, tokenB.address, rate, 999999, 0, 0)).receipt.blockNumber
       var ts = (await web3.eth.getBlock(b)).timestamp;
-      await shoudFail(async () => crowdsale.getApprovalRate(wallets.investor2))
+      await utils.shouldFail(async () => crowdsale.getApprovalRate(wallets.investor2))
       let rate1 = (await crowdsale.getTokenApprovalRate(wallets.investor2, tokenB.address)).toNumber()
       assert.equal(rate1, rate)
       let bestBefore1 = (await crowdsale.getTokenApprovalBestBefore(wallets.investor2, tokenB.address)).toNumber()
@@ -636,7 +537,7 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('Cannot buy with another token', async () => {
       await tokenA.approve(crowdsale.address, 1000, { from: wallets.investor2 })
-      await shoudFail(async () => crowdsale.buyTokensWithTokens(
+      await utils.shouldFail(async () => crowdsale.buyTokensWithTokens(
         wallets.investor2, tokenA.address, 10, {
           from: wallets.investor2
         })
@@ -645,7 +546,7 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('Can not buy when purchase exceeds token balance', async () => {
       let tokenBalancePlusOne = (await tokenB.balanceOf(wallets.investor2)).toNumber() + 1
-      await shoudFail(async () => crowdsale.buyTokensWithTokens(
+      await utils.shouldFail(async () => crowdsale.buyTokensWithTokens(
         wallets.investor2, tokenB.address, tokenBalancePlusOne, {
           from: wallets.investor2
         })
@@ -658,7 +559,7 @@ contract("SENSOCrowdsale", async accounts => {
   describe('Crowdsale finalization', async () => {
 
     it('Cannot be finalized by random person', async () => {
-      await shoudFail(async () => crowdsale.finalize({ from: wallets.noone }) )
+      await utils.shouldFail(async () => crowdsale.finalize({ from: wallets.noone }) )
     })
 
     it('Can be finalized by crowdsale owner', async () => {
@@ -672,7 +573,7 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('Advisory can transfer', async () => {
       let amt = 1
-      await shouldChangeBalance(
+      await utils.shouldChangeBalance(
         () => token.transfer(wallets.investor1, amt,
           { from: wallets.advisory }),
         {
@@ -686,7 +587,7 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('UserLoalty can transfer', async () => {
       let amt = 1
-      await shouldChangeBalance(
+      await utils.shouldChangeBalance(
         () => token.transfer(wallets.investor1, amt,
           { from: wallets.userLoalty }),
         {
@@ -700,7 +601,7 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('Partners can transfer', async () => {
       let amt = 1
-      await shouldChangeBalance(
+      await utils.shouldChangeBalance(
         () => token.transfer(wallets.investor1, amt,
           { from: wallets.partners }),
         {
@@ -714,28 +615,28 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('Team can not unfreeze', async () => {
       let amt = 1
-      await shoudFail(
+      await utils.shouldFail(
         () => token.unfreezeTokens(wallets.team, 365*24*60*60, { from: wallets.team })
       )
     })
 
     it('Team can transfer', async () => {
       let amt = 1
-      await shoudFail(
+      await utils.shouldFail(
         () => token.transfer(wallets.investor1, amt, { from: wallets.team })
       )
     })
 
     it('SafeSupport can transfer', async () => {
       let amt = 1
-      await shoudFail(
+      await utils.shouldFail(
         () => token.transfer(wallets.investor1, amt, { from: wallets.safeSupport })
       )
     })
 
     it('Community can transfer', async () => {
       let amt = 1
-      await shoudFail(
+      await utils.shouldFail(
         () => token.transfer(wallets.investor1, amt, { from: wallets.community })
       )
     })
@@ -745,7 +646,7 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('Closed sale can transfer', async () => {
       let amt = 1
-      await shouldChangeBalance(
+      await utils.shouldChangeBalance(
         () => token.transfer(wallets.investor1, amt,
           { from: wallets.closedSale }),
         {
@@ -759,7 +660,7 @@ contract("SENSOCrowdsale", async accounts => {
 
     it('Investor can transfer', async () => {
       let amt = 1
-      await shouldChangeBalance(
+      await utils.shouldChangeBalance(
         () => token.transfer(wallets.investor1, amt,
           { from: wallets.investor2 }),
         {
@@ -772,7 +673,7 @@ contract("SENSOCrowdsale", async accounts => {
     })
 
     it('Can not buy', async () => {
-      await shoudFail(async () => crowdsale.buyTokens(
+      await utils.shouldFail(async () => crowdsale.buyTokens(
         wallets.investor1, {
           from: wallets.investor1,
           value: constants.weiInEther
@@ -781,23 +682,23 @@ contract("SENSOCrowdsale", async accounts => {
     })
 
     it('Can not buy with tokens', async () => {
-      await shoudFail(async () => crowdsale.buyTokensWithTokens(wallets.investor1, tokenA.address, 100, {
+      await utils.shouldFail(async () => crowdsale.buyTokensWithTokens(wallets.investor1, tokenA.address, 100, {
           from: wallets.investor1
         })
       )
     })
 
     it('Can not approve', async () => {
-      await shoudFail(async () => crowdsale.approve(wallets.investor1, 1, 999999, 0, 0))
+      await utils.shouldFail(async () => crowdsale.approve(wallets.investor1, 1, 999999, 0, 0))
     })
 
     it('Investor can unfreeze tokens', async () => {
       let amt = 3
       let freezeTime = 1
 
-      await advanceTimeAndBlock(freezeTime);
+      await utils.advanceTimeAndBlock(freezeTime);
 
-      await shouldChangeBalance(
+      await utils.shouldChangeBalance(
         () => crowdsale.unfreezeTokens(wallets.investor3, freezeTime),
         {
           [token.address] : {
@@ -811,23 +712,23 @@ contract("SENSOCrowdsale", async accounts => {
       let amt = 2
       let freezeTime = 1
 
-      await shoudFail(async () => crowdsale.unfreezeTokens(wallets.investor3, freezeTime))
+      await utils.shouldFail(async () => crowdsale.unfreezeTokens(wallets.investor3, freezeTime))
     })
 
     it('Investor can not unfreeze tokens before freeze time', async () => {
       let amt = 2
       let freezeTime = 10
 
-      await shoudFail(async () => crowdsale.unfreezeTokens(wallets.investor3, freezeTime))
+      await utils.shouldFail(async () => crowdsale.unfreezeTokens(wallets.investor3, freezeTime))
     })
 
     it('Investor can unfreeze second frozen part after waiting appropriate time', async () => {
       let amt = 2
       let freezeTime = 10
 
-      await advanceTimeAndBlock(freezeTime);
+      await utils.advanceTimeAndBlock(freezeTime);
 
-      await shouldChangeBalance(
+      await utils.shouldChangeBalance(
         () => crowdsale.unfreezeTokens(wallets.investor3, freezeTime),
         {
           [token.address] : {
@@ -842,7 +743,7 @@ contract("SENSOCrowdsale", async accounts => {
       it('Team can transfer', async () => {
         // console.log(constants)
 
-        await advanceTimeAndBlock(365*24*60*60)
+        await utils.advanceTimeAndBlock(365*24*60*60)
 
 
         await crowdsale.unfreezeTokens(wallets.team, 365*24*60*60)
@@ -850,7 +751,7 @@ contract("SENSOCrowdsale", async accounts => {
         await crowdsale.unfreezeTokens(wallets.community, 365*24*60*60)
 
         let amt = 1
-        await shouldChangeBalance(
+        await utils.shouldChangeBalance(
           () => token.transfer(wallets.investor1, amt,
             { from: wallets.team }),
           {
@@ -864,7 +765,7 @@ contract("SENSOCrowdsale", async accounts => {
 
       it('SafeSupport can transfer', async () => {
         let amt = 1
-        await shouldChangeBalance(
+        await utils.shouldChangeBalance(
           () => token.transfer(wallets.investor1, amt,
             { from: wallets.safeSupport }),
           {
@@ -878,7 +779,7 @@ contract("SENSOCrowdsale", async accounts => {
 
       it('Community can transfer', async () => {
         let amt = 1
-        await shouldChangeBalance(
+        await utils.shouldChangeBalance(
           () => token.transfer(wallets.investor1, amt,
             { from: wallets.community }),
           {
