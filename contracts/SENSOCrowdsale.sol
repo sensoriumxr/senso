@@ -337,6 +337,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         require ((freezeShare == 0 && freezeTime == 0) || (freezeShare > 0 && freezeTime > 0), 'SENSOCrowdsale: freezeTime and freezeShare are either both set or 0');
         require (rate > 0, 'SENSOCrowdsale: rate can not be 0');
         require (limit > 0, 'SENSOCrowdsale: limit can not be 0');
+        require (rate/1e18 <= limit, 'SENSOCrowdsale: rate cannot exceed limit');
 
         approvals[beneficiary] = Approval(rate, block.timestamp + 7 days, limit, freezeShare, freezeTime);
         emit NewApproval(beneficiary, limit);
@@ -392,6 +393,7 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         require ((freezeShare == 0 && freezeTime == 0) || (freezeShare > 0 && freezeTime > 0), 'SENSOCrowdsale: freezeTime and freezeShare are either both set or 0');
         require (rate > 0, 'SENSOCrowdsale: rate can not be 0');
         require (limit > 0, 'SENSOCrowdsale: limit can not be 0');
+        require (rate/1e18 <= limit, 'SENSOCrowdsale: rate cannot exceed limit');
 
         tokenApprovals[beneficiary][tradedToken] = Approval(rate, block.timestamp + 1 days, limit, freezeShare, freezeTime);
         emit NewTokenApproval(beneficiary, limit, tradedToken);

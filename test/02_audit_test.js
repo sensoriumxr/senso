@@ -49,6 +49,15 @@ contract("SENSOCrowdsale", async accounts => {
 
   describe('Crowdsale stage', async () => {
 
+    it('Can not approve when rate is higher than limit', async () => {
+      await utils.shouldFail(
+        async () => crowdsale.approve(wallets.investor1, 2e18, 1, 0, 0)
+      )
+      await utils.shouldFail(
+        async () => crowdsale.tokenApprove(wallets.investor1, tokenA.address, 2e18, 1, 0, 0)
+      )
+    })
+
     it('Can purchase tokens', async () => {
       var amt = 10;
       var amtFrozen = 10;
