@@ -456,6 +456,9 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         frozenTokens[teamWallet][freezeTime]        = frozenTokens[teamWallet][freezeTime].add(teamAmount);
         frozenTokens[safeSupportWallet][freezeTime] = frozenTokens[safeSupportWallet][freezeTime].add(safeSupportAmount);
         frozenTokens[communityWallet][freezeTime]   = frozenTokens[communityWallet][freezeTime].add(communityAmount);
+        _token.mint(teamWallet, 0, teamAmount);
+        _token.mint(safeSupportWallet, 0, safeSupportAmount);
+        _token.mint(communityWallet, 0, communityAmount);
         emit TokensFrozen(teamWallet, freezeTime, teamAmount);
         emit TokensFrozen(safeSupportWallet, freezeTime, safeSupportAmount);
         emit TokensFrozen(communityWallet, freezeTime, communityAmount);
@@ -487,9 +490,9 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         require(frozenAmount > 0, 'SENSOCrowdsale: no matching approve for beneficiary');
         require(unfreezeTime.add(_finalizationTime) <= block.timestamp, 'SENSOCrowdsale: to early to unfreeze');
 
+        _token.unfreezeTokens(frozenAmount);
         _deliverTokens(beneficiary, frozenAmount, 0);
         delete frozenTokens[beneficiary][unfreezeTime];
-        _token.unfreezeTokens(frozenAmount);
         emit TokensUnfrozen(beneficiary, unfreezeTime, frozenAmount);
         return true;
     }

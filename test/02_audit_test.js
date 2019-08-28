@@ -162,6 +162,42 @@ contract("SENSOCrowdsale", async accounts => {
       assert.equal(stopped, true)
     })
 
+    it('Have correct balances after crowdsale', async () => {
+      let adminBalance = (await token.balanceOf(wallets.admin)).toNumber()
+      let closedSaleBalance = (await token.balanceOf(wallets.closedSale)).toNumber()
+      let advisoryLoyaltyPartnersBalance = (await token.balanceOf(wallets.advisory)).toNumber()
+      let teamBalance = (await token.balanceOf(wallets.team)).toNumber()
+      let safeSupportBalance = (await token.balanceOf(wallets.safeSupport)).toNumber()
+      let communityBalance = (await token.balanceOf(wallets.community)).toNumber()
+
+      let investor1Balance = (await token.balanceOf(wallets.investor1)).toNumber()
+      let investor2Balance = (await token.balanceOf(wallets.investor2)).toNumber()
+      let investor1Frozen = (await crowdsale.frozenTokens(wallets.investor1, 1)).toNumber()
+      let investor2Frozen = (await crowdsale.frozenTokens(wallets.investor2, 1)).toNumber()
+
+      let teamFrozen = (await crowdsale.frozenTokens(wallets.team, 365*24*60*60)).toNumber()
+      let safeSupportFrozen = (await crowdsale.frozenTokens(wallets.safeSupport, 365*24*60*60)).toNumber()
+      let communityFrozen = (await crowdsale.frozenTokens(wallets.community, 365*24*60*60)).toNumber()
+
+      assert.equal(adminBalance, 0, 'Wrong admin balance')
+      assert.equal(closedSaleBalance, 2000000000, 'Wrong closedSale balance')
+      assert.equal(advisoryLoyaltyPartnersBalance, 188440000+403800000+323040000, 'Wrong advisory/loyalty/partners balance')
+      assert.equal(teamBalance, 0, 'Wrong team balance')
+      assert.equal(safeSupportBalance, 0, 'Wrong safeSupport balance')
+      assert.equal(communityBalance, 0, 'Wrong community balance')
+      assert.equal(investor1Balance + investor2Balance + investor1Frozen + investor2Frozen, 3000000000)
+
+      assert.equal(teamFrozen, 188440000, 'Wrong team frozen amount')
+      assert.equal(safeSupportFrozen, 1265240000, 'Wrong safeSupport frozen amount')
+      assert.equal(communityFrozen, 323040000, 'Wrong community frozen amount')
+
+      let tokenCap = (await token.cap()).toNumber()
+      let totalSupply = (await token.totalSupply()).toNumber()
+      let totalFrozen = teamFrozen+safeSupportFrozen+communityFrozen+investor1Frozen+investor2Frozen
+
+      assert.equal(tokenCap, totalSupply+totalFrozen)
+    })
+
     it('Wallets can not unfreeze tokens directly in token contract', async () => {
       await utils.shouldFail(async () => {
         await token.unfreezeTokens(1, { from: wallets.admin })
@@ -172,11 +208,16 @@ contract("SENSOCrowdsale", async accounts => {
     })
 
     it('Frozen tokens updated corretly', async () => {
+      let teamAmount = (await crowdsale.teamAmount()).toNumber()
+      let safeSupportAmount = (await crowdsale.safeSupportAmount()).toNumber()
+      let communityAmount = (await crowdsale.communityAmount()).toNumber()
+      let totalTeamFrozen = teamAmount + safeSupportAmount + communityAmount
+
       let amt = 10
       let freezeTime = 1
 
       await utils.advanceTimeAndBlock(freezeTime);
-      assert.equal(amt, (await token.totalFrozenTokens()).toNumber())
+      assert.equal(amt + totalTeamFrozen, (await token.totalFrozenTokens()).toNumber())
 
       await utils.shouldChangeBalance(
         () => crowdsale.unfreezeTokens(wallets.investor2, freezeTime),
@@ -187,7 +228,7 @@ contract("SENSOCrowdsale", async accounts => {
         }
       )
 
-      assert.equal(0, (await token.totalFrozenTokens()).toNumber())
+      assert.equal(totalTeamFrozen, (await token.totalFrozenTokens()).toNumber())
     })
 
   })

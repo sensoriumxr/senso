@@ -741,18 +741,21 @@ contract("SENSOCrowdsale", async accounts => {
     describe('12 months wait...', async () => {
 
       it('Team can transfer', async () => {
-        // console.log(constants)
-
         await utils.advanceTimeAndBlock(365*24*60*60)
 
-
-        await crowdsale.unfreezeTokens(wallets.team, 365*24*60*60)
-        await crowdsale.unfreezeTokens(wallets.safeSupport, 365*24*60*60)
-        await crowdsale.unfreezeTokens(wallets.community, 365*24*60*60)
+        var teamReward = (await crowdsale.teamAmount()).toNumber()
+        await utils.shouldChangeBalance(
+          async () => crowdsale.unfreezeTokens(wallets.team, 365*24*60*60),
+          {
+            [token.address] : {
+              [wallets.team] : teamReward
+            }
+          }
+        )
 
         let amt = 1
         await utils.shouldChangeBalance(
-          () => token.transfer(wallets.investor1, amt,
+          async () => token.transfer(wallets.investor1, amt,
             { from: wallets.team }),
           {
             [token.address] : {
@@ -764,9 +767,19 @@ contract("SENSOCrowdsale", async accounts => {
       })
 
       it('SafeSupport can transfer', async () => {
+        var safeSupportReward = (await crowdsale.safeSupportAmount()).toNumber()
+        await utils.shouldChangeBalance(
+          async () => crowdsale.unfreezeTokens(wallets.safeSupport, 365*24*60*60),
+          {
+            [token.address] : {
+              [wallets.safeSupport] : safeSupportReward
+            }
+          }
+        )
+
         let amt = 1
         await utils.shouldChangeBalance(
-          () => token.transfer(wallets.investor1, amt,
+          async () => token.transfer(wallets.investor1, amt,
             { from: wallets.safeSupport }),
           {
             [token.address] : {
@@ -778,9 +791,22 @@ contract("SENSOCrowdsale", async accounts => {
       })
 
       it('Community can transfer', async () => {
+        // var cw = await crowdsale.communityWallet()
+        // assert.equal(cw, wallets.community)
+
+        var communityReward = (await crowdsale.communityAmount()).toNumber()
+        await utils.shouldChangeBalance(
+          async () => crowdsale.unfreezeTokens(wallets.community, 365*24*60*60),
+          {
+            [token.address] : {
+              [wallets.community] : communityReward
+            }
+          }
+        )
+
         let amt = 1
         await utils.shouldChangeBalance(
-          () => token.transfer(wallets.investor1, amt,
+          async () => token.transfer(wallets.investor1, amt,
             { from: wallets.community }),
           {
             [token.address] : {
