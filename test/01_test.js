@@ -198,6 +198,27 @@ contract("SENSOCrowdsale", async accounts => {
         )
       })
 
+      it('Can buy when sender ≠ beneficiary', async () => {
+        let rate = 5
+        let amt = 10
+        let totalWeiPaid = constants.weiInEther*amt/rate
+        await crowdsale.approve(wallets.investor1, rate, 10, 0, 0)
+        await utils.shouldChangeBalance(
+          async () => {
+            await crowdsale.buyTokens(wallets.investor2, {
+              from: wallets.investor1,
+              value: totalWeiPaid
+            })
+          }, {
+            [token.address]: { [wallets.investor2] : amt },
+            'eth': {
+              [wallets.collectedFunds] : totalWeiPaid,
+              [wallets.investor1] : -totalWeiPaid
+            }
+          }
+        )
+      })
+
       // it('Cannot be purchased by a random person', async () => {
       //   utils.shouldFail(async () => crowdsale.buyTokens(wallets.noone, {
       //     from: wallets.noone,
@@ -491,6 +512,28 @@ contract("SENSOCrowdsale", async accounts => {
           [tokenA.address] : {
             [wallets.collectedFunds] : amt/rate,
             [wallets.investor1] : -amt/rate
+          }
+        }
+      )
+    })
+
+    it('Can buy with tokens when sender ≠ beneficiary', async () => {
+      let rate = 3
+      let amt = 3
+      await crowdsale.tokenApprove(wallets.investor2, tokenA.address, rate, 3, 0, 0)
+      await tokenA.approve(crowdsale.address, amt/rate, { from: wallets.investor2 })
+      await utils.shouldChangeBalance(
+        async () => {
+          await crowdsale.buyTokensWithTokens(wallets.investor1, tokenA.address, amt/rate, {
+            from: wallets.investor2
+          })
+        }, {
+          [token.address] : {
+            [wallets.investor1] : amt
+          },
+          [tokenA.address] : {
+            [wallets.collectedFunds] : amt/rate,
+            [wallets.investor2] : -amt/rate
           }
         }
       )

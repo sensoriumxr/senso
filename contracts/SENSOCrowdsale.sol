@@ -198,10 +198,11 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      */
     function buyTokens(address beneficiary) public nonReentrant onlyNotFinalized payable {
         uint256 weiAmount = msg.value;
+        address payer = msg.sender;
         (uint256 immediateTokensAmount, uint256 frozenTokensAmount, uint256 freezeTime) =
-            _getTokenAmount(weiAmount, beneficiary);
+            _getTokenAmount(weiAmount, payer);
 
-        _preValidatePurchase(beneficiary, weiAmount,
+        _preValidatePurchase(beneficiary, payer, weiAmount,
             immediateTokensAmount.add(frozenTokensAmount));
 
         _weiRaised = _weiRaised.add(weiAmount);
@@ -209,10 +210,10 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         _deliverTokens(beneficiary, immediateTokensAmount, frozenTokensAmount);
         frozenTokens[beneficiary][freezeTime] = frozenTokens[beneficiary][freezeTime].add(frozenTokensAmount);
 
-        emit TokensPurchased(msg.sender, beneficiary, weiAmount, immediateTokensAmount.add(frozenTokensAmount));
+        emit TokensPurchased(payer, beneficiary, weiAmount, immediateTokensAmount.add(frozenTokensAmount));
         emit TokensFrozen(beneficiary, freezeTime, frozenTokensAmount);
 
-        delete approvals[beneficiary];
+        delete approvals[payer];
 
         _wallet.transfer(weiAmount);
     }
@@ -226,11 +227,11 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @param beneficiary Address performing the token purchase
      * @param weiAmount Value in wei involved in the purchase
      */
-    function _preValidatePurchase(address beneficiary, uint256 weiAmount, uint256 tokensPurchasedAmound) internal view {
+    function _preValidatePurchase(address beneficiary, address payer, uint256 weiAmount, uint256 tokensPurchasedAmound) internal view {
         require(beneficiary != address(0), "Crowdsale: beneficiary is the zero address");
         require(weiAmount != 0, "Crowdsale: weiAmount is 0");
         require(tokensPurchasedAmound.add(_token.totalSupply()).add(_token.totalFrozenTokens()) <= _token.tokensaleAmount().add(_token.closedSaleAmount()));
-        _isApproved(msg.sender);
+        _isApproved(payer);
     }
 
     /**
@@ -248,8 +249,8 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
      * @param weiAmount Value in wei to be converted into tokens
      * @return Number of tokens that can be purchased with the specified _weiAmount
      */
-    function _getTokenAmount(uint256 weiAmount, address beneficiary) internal view returns (uint256,uint256,uint256) {
-        Approval memory approval = approvals[beneficiary];
+    function _getTokenAmount(uint256 weiAmount, address payer) internal view returns (uint256,uint256,uint256) {
+        Approval memory approval = approvals[payer];
         uint256 totalTokensAmount = weiAmount.mul(approval.rate).div(1e18);
         uint256 frozenTokensAmount = totalTokensAmount.mul(approval.freezeShare).div(100);
         uint256 immediateTokensAmount = totalTokensAmount.sub(frozenTokensAmount);
@@ -268,33 +269,34 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
     function buyTokensWithTokens(address beneficiary, IERC20 tradedToken,
         uint256 tokenAmountPaid) public nonReentrant onlyNotFinalized
     {
+        address payer = msg.sender;
         (uint256 immediateTokensAmount, uint256  frozenTokensAmount, uint256  freezeTime) =
-            _getTokenAmountWithTokens(tokenAmountPaid, beneficiary, address(tradedToken));
-        _preValidatePurchase(beneficiary, address(tradedToken), tokenAmountPaid, immediateTokensAmount.add(frozenTokensAmount));
+            _getTokenAmountWithTokens(tokenAmountPaid, payer, address(tradedToken));
+        _preValidatePurchase(beneficiary, payer, address(tradedToken), tokenAmountPaid, immediateTokensAmount.add(frozenTokensAmount));
 
         _tokenRaised[address(tradedToken)] = _tokenRaised[address(tradedToken)].add(tokenAmountPaid);
 
         _deliverTokens(beneficiary, immediateTokensAmount, frozenTokensAmount);
         frozenTokens[beneficiary][freezeTime] = frozenTokens[beneficiary][freezeTime].add(frozenTokensAmount);
 
-        emit TokensPurchasedWithTokens(msg.sender, beneficiary, tokenAmountPaid, immediateTokensAmount.add(frozenTokensAmount), tradedToken);
+        emit TokensPurchasedWithTokens(payer, beneficiary, tokenAmountPaid, immediateTokensAmount.add(frozenTokensAmount), tradedToken);
         emit TokensFrozen(beneficiary, freezeTime, frozenTokensAmount);
 
-        delete tokenApprovals[beneficiary][address(tradedToken)];
+        delete tokenApprovals[payer][address(tradedToken)];
 
-        tradedToken.safeTransferFrom(beneficiary, _wallet, tokenAmountPaid);
+        tradedToken.safeTransferFrom(payer, _wallet, tokenAmountPaid);
     }
 
-    function _preValidatePurchase(address beneficiary, address tradedToken, uint256 tokenAmount, uint256 tokensPurchasedAmound) internal view {
+    function _preValidatePurchase(address beneficiary, address payer, address tradedToken, uint256 tokenAmount, uint256 tokensPurchasedAmound) internal view {
         require(beneficiary != address(0), "Crowdsale: beneficiary is the zero address");
         require(tradedToken != address(0), "Crowdsale: tradedToken is the zero address");
         require(tokenAmount != 0, "Crowdsale: tokenAmountPaid is 0");
         require(tokensPurchasedAmound.add(_token.totalSupply()).add(_token.totalFrozenTokens()) <= _token.tokensaleAmount().add(_token.closedSaleAmount()));
-        _isTokenApproved(msg.sender, tradedToken);
+        _isTokenApproved(payer, tradedToken);
     }
 
-    function _getTokenAmountWithTokens(uint256 tokenAmount, address beneficiary, address tradedToken) internal view returns (uint256,uint256,uint256) {
-        Approval memory approval = tokenApprovals[beneficiary][tradedToken];
+    function _getTokenAmountWithTokens(uint256 tokenAmount, address payer, address tradedToken) internal view returns (uint256,uint256,uint256) {
+        Approval memory approval = tokenApprovals[payer][tradedToken];
         uint256 totalTokensAmount = tokenAmount.mul(approval.rate);
         uint256 frozenTokensAmount = totalTokensAmount.mul(approval.freezeShare).div(100);
         uint256 immediateTokensAmount = totalTokensAmount.sub(frozenTokensAmount);
