@@ -455,12 +455,12 @@ contract SENSOCrowdsale is Ownable, ReentrancyGuard {
         _token.mint(partnersWallet, partnersAmount, 0);
         uint256 freezeTime = 365 days;
 
+        _deliverTokens(teamWallet, 0, teamAmount);
+        _deliverTokens(safeSupportWallet, 0, safeSupportAmount);
+        _deliverTokens(communityWallet, 0, communityAmount);
         frozenTokens[teamWallet][freezeTime]        = frozenTokens[teamWallet][freezeTime].add(teamAmount);
         frozenTokens[safeSupportWallet][freezeTime] = frozenTokens[safeSupportWallet][freezeTime].add(safeSupportAmount);
         frozenTokens[communityWallet][freezeTime]   = frozenTokens[communityWallet][freezeTime].add(communityAmount);
-        _token.mint(teamWallet, 0, teamAmount);
-        _token.mint(safeSupportWallet, 0, safeSupportAmount);
-        _token.mint(communityWallet, 0, communityAmount);
         emit TokensFrozen(teamWallet, freezeTime, teamAmount);
         emit TokensFrozen(safeSupportWallet, freezeTime, safeSupportAmount);
         emit TokensFrozen(communityWallet, freezeTime, communityAmount);
