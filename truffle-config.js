@@ -1,3 +1,4 @@
+require('dotenv').config();
 /**
  * Use this file to configure your truffle project. It's seeded with some
  * common settings for different networks and features like migrations,
@@ -23,6 +24,9 @@
 //
 // const fs = require('fs');
 // const mnemonic = fs.readFileSync(".secret").toString().trim();
+
+var PrivateKeyProvider = require("truffle-privatekey-provider");
+ 
 
 module.exports = {
   /**
@@ -60,14 +64,28 @@ module.exports = {
 
     // Useful for deploying to a public network.
     // NB: It's important to wrap the provider as a function.
-    // ropsten: {
-      // provider: () => new HDWalletProvider(mnemonic, `https://ropsten.infura.io/v3/YOUR-PROJECT-ID`),
-      // network_id: 3,       // Ropsten's id
-      // gas: 5500000,        // Ropsten has a lower block limit than mainnet
-      // confirmations: 2,    // # of confs to wait between deployments. (default: 0)
-      // timeoutBlocks: 200,  // # of blocks before a deployment times out  (minimum/default: 50)
-      // skipDryRun: true     // Skip dry run before migrations? (default: false for public nets )
-    // },
+    ropsten: {
+      provider: () => new PrivateKeyProvider(process.env.ROPSTEN_PK, process.env.ROPSTEN_NODE),
+      from: process.env.ROPSTEN_FROM,
+      network_id: 3,       // Ropsten's id
+      gas: 6000000,        // Ropsten has a lower block limit than mainnet
+      confirmations: 1,    // # of confs to wait between deployments. (default: 0)
+      timeoutBlocks: 200,  // # of blocks before a deployment times out  (minimum/default: 50)
+      skipDryRun: true,     // Skip dry run before migrations? (default: false for public nets ),
+      gasPrice: 2000000000, // 2 Gwei 
+    },
+
+    eth: {
+      provider: () => new PrivateKeyProvider(process.env.ETH_PK, process.env.ETH_NODE),
+      from: process.env.ETH_FROM,
+      network_id: 1,       
+      gas: 6000000,        
+      confirmations: 1,    
+      timeoutBlocks: 200,  
+      skipDryRun: true,    
+      gasPrice: 140000000000, // 140 Gwei, check https://ethgasstation.info/
+    },
+
 
     // Useful for private networks
     // private: {
