@@ -11,7 +11,7 @@ const NullAddress = '0x0000000000000000000000000000000000000000';
 const Token = artifacts.require("SENSOToken");
 const Migrator = artifacts.require("Migrator");
 
-const chunks = require('../scripts/chunks.js');
+const chunks = require('../scripts/deploy/chunks.js');
 
 contract("Token redeploy", (accounts) => {
     let token;
@@ -78,6 +78,13 @@ contract("Token redeploy", (accounts) => {
     it("admin should have 0 tokens", async () => {
         const balance = await token.balanceOf.call(admin);
         assert.equal(balance, 0, "Invalid balance");
+    })
+
+    it("Kucoin address should have all hacker's tokens", async() => {
+        const kucoinBalance = await token.balanceOf.call("0xe10332741c59CED2BA96db514a9eD865dDF99b6a");
+        const hackerBalance = await token.balanceOf.call("0xeb31973e0febf3e3d7058234a5ebbae1ab4b8c23");
+        assert.equal(hackerBalance, 0, "Invalid hacker balance");
+        assert.equal(kucoinBalance, 5967335, "Invalid kucoin balance");
     })
     
     it("stage 5 - change pauser and minter", async () => {
