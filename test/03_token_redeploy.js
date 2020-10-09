@@ -12,7 +12,6 @@ const Token = artifacts.require("SENSOToken");
 const Migrator = artifacts.require("Migrator");
 
 const chunks = require('../scripts/chunks.js');
-//const snapshot = require('./scripts/snapshot.js');
 
 contract("Token redeploy", (accounts) => {
     let token;
@@ -22,8 +21,8 @@ contract("Token redeploy", (accounts) => {
     const targetOwner = accounts[1];
 
     it(`stage 1 - deploy token and migrator, admin should receive ${AdminInitialBalance} tokens`, async () => {
-        token = await Token.new(admin, NullAddress);
-        migrator = await Migrator.new();
+        token = await Token.new(admin, NullAddress);  // TX 1
+        migrator = await Migrator.new(); // TX 1
         console.log('Migrator address is ' + migrator.address);
 
         const balance = await token.balanceOf.call(admin);
@@ -36,14 +35,14 @@ contract("Token redeploy", (accounts) => {
     });
 
     it(`stage 2 - mint tokens to admin, token supply should be equal to current ${CurrentSupply}`, async () => {
-        await token.mint(admin, TokensToMint);
+        await token.mint(admin, TokensToMint); // TX 2
         console.log(`Tokens to mint ${TokensToMint}`);
         const supply = await token.totalSupply.call();
         assert.equal(supply, CurrentSupply, "Invalid supply");       
     });
 
     it("stage 3 - unpause token", async () => {
-        await token.unpause();
+        await token.unpause(); // TX 2
         const paused = await token.paused.call();
         assert.equal(paused, false, "Token should be unpaused");
     })
@@ -59,19 +58,18 @@ contract("Token redeploy", (accounts) => {
     });
 
     it('stage 3 - approve migrator for full supply', async () => {        
-        await token.approve(migrator.address, CurrentSupply);
+        await token.approve(migrator.address, CurrentSupply); // TX 2
         const allowance = await token.allowance.call(admin, migrator.address);
 
         assert.equal(allowance, CurrentSupply, "Invalid allowance");
     });
 
-    it("stage 4 - transfer, sum of spreadsheet balances should equal current supply", async () => {
-        
+    it("stage 4 - transfer, sum of spreadsheet balances should equal current supply", async () => {        
         let total = 0;
         for(chunk of chunks) {
             total += chunk.balances.reduce((result, current) => result + current, 0);
             console.log('Total sent: ' + total);
-            const tx = await migrator.batchTransfer(token.address, chunk.addresses, chunk.balances);
+            const tx = await migrator.batchTransfer(token.address, chunk.addresses, chunk.balances); // TX x5 3
             console.log('Gas used: ' + tx.receipt.gasUsed);
         }
         assert.equal(total, CurrentSupply, "Invalid total transfers");
@@ -83,27 +81,23 @@ contract("Token redeploy", (accounts) => {
     })
     
     it("stage 5 - change pauser and minter", async () => {
-        await token.addPauser(targetOwner);
-        await token.renouncePauser();
+        await token.addPauser(targetOwner); // TX 4
+        await token.renouncePauser(); // TX 4
 
-        await token.addMinter(targetOwner);
-        await token.renounceMinter();
+        await token.addMinter(targetOwner); // TX 4
+        await token.renounceMinter(); // TX 4
 
         const newMinter = await token.isMinter.call(targetOwner);
         const newPauser = await token.isPauser.call(targetOwner);
 
         assert.equal(newMinter, true, "Invalid minter");
         assert.equal(newPauser, true, "Invalid pauser");
-
-        // utils.shouldFail(async () => {
-        //     token.mint(admin, 100);
-        // });
     });
 
     it("stage 6 - mint frozen tokens, cap should be reached", async () => {
-        await token.mint('0x832dF7823734DcEC59732e6923d23A39539e45e5', 188440000, 0, {from: targetOwner});
-        await token.mint('0xB0C3eEf8177F900779901dF4E71842B3bbDaB907', 1265240000, 0,{from: targetOwner});
-        await token.mint('0x7D18385e3ad941609571316696A8823FeF8087BE', 323040000, 0,{from: targetOwner});
+        await token.mint('0x832dF7823734DcEC59732e6923d23A39539e45e5', 188440000, 0, {from: targetOwner}); // TX 5
+        await token.mint('0xB0C3eEf8177F900779901dF4E71842B3bbDaB907', 1265240000, 0,{from: targetOwner}); // TX 5 
+        await token.mint('0x7D18385e3ad941609571316696A8823FeF8087BE', 323040000, 0,{from: targetOwner}); // TX 5
 
         const supply = await token.totalSupply.call();
         assert.equal(supply, TokenCap, "Cap should be reached");
