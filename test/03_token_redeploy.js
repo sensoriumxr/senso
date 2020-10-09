@@ -1,5 +1,6 @@
 const { assert } = require('chai');
 
+const utils = require('./utils');
 const TokenCap = 7692000000;
 const AdminInitialBalance = 2000000000;
 const CurrentSupply = 5915280000;
@@ -9,6 +10,9 @@ const FrozenTokens = 188440000 + 1265240000 + 323040000;
 const NullAddress = '0x0000000000000000000000000000000000000000';
 const Token = artifacts.require("SENSOToken");
 const Migrator = artifacts.require("Migrator");
+
+const chunks = require('../scripts/chunks.js');
+//const snapshot = require('./scripts/snapshot.js');
 
 contract("Token redeploy", (accounts) => {
     let token;
@@ -24,7 +28,7 @@ contract("Token redeploy", (accounts) => {
 
         const balance = await token.balanceOf.call(admin);
         assert.equal(balance, AdminInitialBalance, "Invalid admin balance");                
-    });
+    });    
 
     it(`token cap should be equal to ${TokenCap}`, async () => {
         const cap = await token.cap.call();
@@ -37,6 +41,12 @@ contract("Token redeploy", (accounts) => {
         const supply = await token.totalSupply.call();
         assert.equal(supply, CurrentSupply, "Invalid supply");       
     });
+
+    it("stage 3 - unpause token", async () => {
+        await token.unpause();
+        const paused = await token.paused.call();
+        assert.equal(paused, false, "Token should be unpaused");
+    })
 
     it('admin balance should be equal to total supply', async () => {
         const balance = await token.balanceOf(admin);
@@ -55,11 +65,47 @@ contract("Token redeploy", (accounts) => {
         assert.equal(allowance, CurrentSupply, "Invalid allowance");
     });
 
-    // parse csv spreadsheet and check total suuply, 5 blocks of 130 transfers each 
+    it("stage 4 - transfer, sum of spreadsheet balances should equal current supply", async () => {
+        
+        let total = 0;
+        for(chunk of chunks) {
+            total += chunk.balances.reduce((result, current) => result + current, 0);
+            console.log('Total sent: ' + total);
+            const tx = await migrator.batchTransfer(token.address, chunk.addresses, chunk.balances);
+            console.log('Gas used: ' + tx.receipt.gasUsed);
+        }
+        assert.equal(total, CurrentSupply, "Invalid total transfers");
+    });
 
-    // check ALL spreadsheet balances;
+    it("admin should have 0 tokens", async () => {
+        const balance = await token.balanceOf.call(admin);
+        assert.equal(balance, 0, "Invalid balance");
+    })
+    
+    it("stage 5 - change pauser and minter", async () => {
+        await token.addPauser(targetOwner);
+        await token.renouncePauser();
 
-    // change ownership AND RENOUNCE MINTER, test mint to fail
+        await token.addMinter(targetOwner);
+        await token.renounceMinter();
 
-    // check mint of frozen token amounts (3 separate to be ok), then check cap is reached and none could be minted
+        const newMinter = await token.isMinter.call(targetOwner);
+        const newPauser = await token.isPauser.call(targetOwner);
+
+        assert.equal(newMinter, true, "Invalid minter");
+        assert.equal(newPauser, true, "Invalid pauser");
+
+        // utils.shouldFail(async () => {
+        //     token.mint(admin, 100);
+        // });
+    });
+
+    it("stage 6 - mint frozen tokens, cap should be reached", async () => {
+        await token.mint('0x832dF7823734DcEC59732e6923d23A39539e45e5', 188440000, 0, {from: targetOwner});
+        await token.mint('0xB0C3eEf8177F900779901dF4E71842B3bbDaB907', 1265240000, 0,{from: targetOwner});
+        await token.mint('0x7D18385e3ad941609571316696A8823FeF8087BE', 323040000, 0,{from: targetOwner});
+
+        const supply = await token.totalSupply.call();
+        assert.equal(supply, TokenCap, "Cap should be reached");
+    });    
 });
