@@ -7,11 +7,10 @@ const CurrentSupply = 5915280000;
 const TokensToMint = CurrentSupply - AdminInitialBalance;
 const FrozenTokens = 188440000 + 1265240000 + 323040000;
 
-const chunks = require('../scripts/chunks.js');
+const chunks = require('../scripts/deploy/chunks.js');
 
 let token;
 let migrator;
-let tx;
 
 const logTx = tx => {
     console.log(`${tx.receipt.transactionHash}. Gas used: ${tx.receipt.gasUsed}`);
@@ -53,21 +52,5 @@ module.exports = function(deployer, network, accounts) {
         const adminTokens = await token.balanceOf.call(admin);
         console.log('Admin tokens left');
         console.log(adminTokens.toString())
-    })
-
-    // return deployer.deploy(SENSOToken, accounts[0], '0x0000000000000000000000000000000000000000').then(instance => {
-    //     token = instance;
-    //     console.log('Token: ' + token);
-        
-    //     return deployer.deploy(Migrator);
-    // }).then(instance => {
-    //     migrator = instance;
-    //     console.log('Migrator: ' + migrator.address);
-
-
-    // }).
-    //migrator = await deployer.deploy(Migrator);  // TX 1
-
-    //console.log(token);
-    //console.log('Migrator :' + migrator.address);
-}
+    });    
+};
