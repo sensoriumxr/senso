@@ -17,11 +17,15 @@ const logTx = tx => {
 }
 
 module.exports = function(deployer, network, accounts) {
-    let admin = accounts[0];
+    const admin = accounts[0];
+    const finalOwner = process.env.FINAL_OWNER;
 
-    console.log(network);
-    console.log(accounts);
-
+    console.log('Migrating to network: ' + network);    
+    if(!SENSOToken.web3.utils.isAddress(finalOwner)) {
+        console.log("FINAL_OWNER env variable not set or is not a checksum Ethereum address: ", finalOwner);
+        return;
+    }
+    console.log('Final owner: ' + finalOwner);
     deployer.then(async () => {
         //1 deploy token
         //token = await deployer.deploy(SENSOToken, accounts[0], "0x0000000000000000000000000000000000000000");
@@ -32,6 +36,12 @@ module.exports = function(deployer, network, accounts) {
         //migrator = await deployer.deploy(Migrator);
         migrator = await Migrator.new({gas: 600000});
         console.log('Migrator address: ' + migrator.address);
+
+        //2.1 add finalOwner as minter and pauser
+        console.log("Add minter");
+        logTx(await token.addMinter(finalOwner, {gas: 60000}));
+        console.log("Add pauser");
+        logTx(await token.addPauser(finalOwner, {gas: 60000}));
 
         //3 mint tokens
         console.log("Mint additional tokens");
@@ -50,7 +60,10 @@ module.exports = function(deployer, network, accounts) {
         }
 
         const adminTokens = await token.balanceOf.call(admin);
-        console.log('Admin tokens left');
-        console.log(adminTokens.toString())
+        console.log('Admin tokens left: ' + adminTokens.toString());        
+
+        const minter = await token.isMinter.call(finalOwner);
+        const pauser = await token.isPauser.call(finalOwner);
+        console.log('Final owner is minter/pauser:', minter, pauser);
     });    
 };
