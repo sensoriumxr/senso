@@ -1,0 +1,17 @@
+{
+  "name": "senso-polygon",
+  "version": "1.0.0",
+  "description": "Contracts bringing SENSO token to Polygon",
+  "license": "MIT",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "truffle test",
+    "compile": "truffle compile"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.7.3"
+  }
+}
