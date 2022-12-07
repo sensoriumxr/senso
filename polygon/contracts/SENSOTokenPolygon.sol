@@ -2,24 +2,24 @@
 pragma solidity ^0.8.4;
 
 import "./ERC1363.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
 import "./metatx/EIP712MetaTransaction.sol";
 import "./interfaces/IChildToken.sol";
+import "./SENSOTokenControl.sol";
 
 contract Sensorium is
     ERC1363,
-    Pausable,
-    AccessControl,
+    ERC20Permit,
+    SensoriumTokenControl,
     EIP712MetaTransaction,
     IChildToken
 {
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
 
+    // ERC20Permit initializes EIP712 with (<name>, "1")
     constructor(address childChainManager)
         ERC20("Sensorium", "SENSO")
-        EIP712MetaTransaction("Sensorium", "1.0.0")
+        ERC20Permit("Sensorium")
     {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
@@ -32,14 +32,9 @@ contract Sensorium is
         return msgSender();
     }
 
-    function pause() public onlyRole(PAUSER_ROLE) {
-        _pause();
-    }
+    // Overrides for pausing
 
-    function unpause() public onlyRole(PAUSER_ROLE) {
-        _unpause();
-    }
-
+    // ERC20
     function _beforeTokenTransfer(
         address from,
         address to,
@@ -47,6 +42,47 @@ contract Sensorium is
     ) internal override whenNotPaused {
         super._beforeTokenTransfer(from, to, amount);
     }
+
+    // ERC2612
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) public virtual override whenERC2612NotPaused {
+        return super.permit(owner, spender, value, deadline, v, r, s);
+    }
+
+    // ERC1363
+    function transferAndCall(
+        address to,
+        uint256 value,
+        bytes memory data
+    ) public override whenERC1363NotPaused returns (bool) {
+        return super.transferAndCall(to, value, data);
+    }
+
+    function transferFromAndCall(
+        address from,
+        address to,
+        uint256 value,
+        bytes memory data
+    ) public override whenERC1363NotPaused returns (bool) {
+        return super.transferFromAndCall(from, to, value, data);
+    }
+
+    function approveAndCall(
+        address spender,
+        uint256 value,
+        bytes memory data
+    ) public override whenERC1363NotPaused returns (bool) {
+        return super.approveAndCall(spender, value, data);
+    }
+
+    // End of overrides for pausing
 
     /**
      * @notice called when token is deposited on root chain
@@ -84,6 +120,7 @@ contract Sensorium is
     {
         return
             interfaceId == type(IChildToken).interfaceId ||
+            interfaceId == type(IERC20Permit).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 }

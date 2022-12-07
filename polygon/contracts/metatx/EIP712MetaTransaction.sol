@@ -3,10 +3,10 @@
 // Original authors: https://github.com/bcnmy/metatx-standard contributors
 pragma solidity ^0.8.0;
 
-import "./EIP712Base.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-contract EIP712MetaTransaction is EIP712Base {
+abstract contract EIP712MetaTransaction is EIP712 {
     using SafeMath for uint256;
     bytes32 private constant META_TRANSACTION_TYPEHASH =
         keccak256(
@@ -32,10 +32,6 @@ contract EIP712MetaTransaction is EIP712Base {
         address from;
         bytes functionSignature;
     }
-
-    constructor(string memory name, string memory version)
-        EIP712Base(name, version)
-    {}
 
     function convertBytesToBytes4(bytes memory inBytes)
         internal
@@ -115,7 +111,7 @@ contract EIP712MetaTransaction is EIP712Base {
         uint8 sigV
     ) internal view returns (bool) {
         address signer = ecrecover(
-            toTypedMessageHash(hashMetaTransaction(metaTx)),
+            _hashTypedDataV4(hashMetaTransaction(metaTx)),
             sigV,
             sigR,
             sigS
