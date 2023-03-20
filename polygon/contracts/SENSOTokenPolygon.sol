@@ -3,8 +3,8 @@ pragma solidity ^0.8.4;
 
 import "./ERC1363.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
+import "./interfaces/IFxERC20.sol";
 import "./metatx/EIP712MetaTransaction.sol";
-import "./interfaces/IChildToken.sol";
 import "./SENSOTokenControl.sol";
 
 contract Sensorium is
@@ -12,18 +12,15 @@ contract Sensorium is
     ERC20Permit,
     SensoriumTokenControl,
     EIP712MetaTransaction,
-    IChildToken
+    IFxERC20
 {
-    bytes32 public constant DEPOSITOR_ROLE = keccak256("DEPOSITOR_ROLE");
+    address internal _fxManager;
+    address internal _connectedToken;
 
     // ERC20Permit initializes EIP712 with (<name>, "1")
-    constructor(address childChainManager)
-        ERC20("Sensorium", "SENSO")
-        ERC20Permit("Sensorium")
-    {
+    constructor() ERC20("Sensorium", "SENSO") ERC20Permit("Sensorium") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
-        _grantRole(DEPOSITOR_ROLE, childChainManager);
     }
 
     // This is to support Native meta transactions
@@ -84,42 +81,48 @@ contract Sensorium is
 
     // End of overrides for pausing
 
-    /**
-     * @notice called when token is deposited on root chain
-     * @dev Should be callable only by ChildChainManager
-     * Should handle deposit by minting the required amount for user
-     * Make sure minting is done only by this function
-     * @param user user address for whom deposit is being done
-     * @param depositData abi encoded amount
-     */
-    function deposit(address user, bytes calldata depositData)
-        external
-        override
-        onlyRole(DEPOSITOR_ROLE)
-    {
-        uint256 amount = abi.decode(depositData, (uint256));
+    // IFxERC20
+
+    function setFxManager(
+        address fxManager_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _fxManager = fxManager_;
+    }
+
+    // fxManager returns fx manager
+    function fxManager() public view override returns (address) {
+        return _fxManager;
+    }
+
+    // connectedToken returns root token
+    function connectedToken() public view override returns (address) {
+        return _connectedToken;
+    }
+
+    function initialize(address connectedToken_) external override {
+        require(msg.sender == _fxManager, "Invalid sender");
+        _connectedToken = connectedToken_;
+    }
+
+    function mint(address user, uint256 amount) public override {
+        require(msg.sender == _fxManager, "Invalid sender");
         _mint(user, amount);
     }
 
-    /**
-     * @notice called when user wants to withdraw tokens back to root chain
-     * @dev Should burn user's tokens. This transaction will be verified when exiting on root chain
-     * @param amount amount of tokens to withdraw
-     */
-    function withdraw(uint256 amount) external {
-        _burn(_msgSender(), amount);
+    function burn(address user, uint256 amount) public override {
+        require(msg.sender == _fxManager, "Invalid sender");
+        _burn(user, amount);
     }
+
+    // End of IFxERC20
 
     // The following functions are overrides required by Solidity.
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC1363, AccessControl)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC1363, AccessControl) returns (bool) {
         return
-            interfaceId == type(IChildToken).interfaceId ||
+            interfaceId == type(IFxERC20).interfaceId ||
             interfaceId == type(IERC20Permit).interfaceId ||
             super.supportsInterface(interfaceId);
     }
