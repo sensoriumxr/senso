@@ -2,12 +2,14 @@
 pragma solidity ^0.8.4;
 
 import "./ERC1363.sol";
+import "@opengsn/contracts/src/ERC2771Recipient.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
 import "./interfaces/IFxERC20.sol";
 import "./metatx/EIP712MetaTransaction.sol";
 import "./SENSOTokenControl.sol";
 
-contract Sensorium is
+contract SENSOTokenPolygon is
+    ERC2771Recipient,
     ERC1363,
     ERC20Permit,
     SensoriumTokenControl,
@@ -23,10 +25,8 @@ contract Sensorium is
         _grantRole(PAUSER_ROLE, msg.sender);
     }
 
-    // This is to support Native meta transactions
-    // never use msg.sender directly, use _msgSender() instead
-    function _msgSender() internal view override returns (address) {
-        return msgSender();
+    function decimals() public view virtual override returns (uint8) {
+        return 0;
     }
 
     // Overrides for pausing
@@ -125,5 +125,37 @@ contract Sensorium is
             interfaceId == type(IFxERC20).interfaceId ||
             interfaceId == type(IERC20Permit).interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    function setTrustedForwarder(
+        address forwarder
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setTrustedForwarder(forwarder);
+    }
+
+    function _msgSender()
+        internal
+        view
+        override(Context, ERC2771Recipient)
+        returns (address)
+    {
+        if (msg.sender == address(this)) {
+            return EIP712MetaTransaction.msgSender();
+        } else {
+            return ERC2771Recipient._msgSender();
+        }
+    }
+
+    function _msgData()
+        internal
+        view
+        override(Context, ERC2771Recipient)
+        returns (bytes calldata)
+    {
+        if (msg.sender == address(this)) {
+            return msg.data;
+        } else {
+            return ERC2771Recipient._msgData();
+        }
     }
 }
