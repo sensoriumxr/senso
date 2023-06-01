@@ -29,7 +29,7 @@ abstract contract SensoriumTokenControl is Pausable, AccessControl {
      */
     event ERC1363Unpaused(address account);
 
-    bool private _erc1363Paused;
+    bool private _erc1363Paused = true;
 
     /**
      * @dev Modifier to make a function callable only when the ERC1363 implementation is not paused.
@@ -79,7 +79,7 @@ abstract contract SensoriumTokenControl is Pausable, AccessControl {
      */
     event ERC2612Unpaused(address account);
 
-    bool private _erc2612Paused;
+    bool private _erc2612Paused = true;
 
     /**
      * @dev Modifier to make a function callable only when the ERC2612 implementation is not paused.
